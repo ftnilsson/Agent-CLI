@@ -1,0 +1,11 @@
+{
+  "source": "github:your-org/skills-repo",
+  "ref": "v1.0.0",
+  "outputDir": ".skills",
+  "include": [
+    "development/architecture",
+    "development/git",
+    "game-dev/physics",
+    "game-dev/input"
+  ]
+}

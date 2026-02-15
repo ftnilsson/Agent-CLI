@@ -1,0 +1,111 @@
+{
+  "version": "1.0.0",
+  "presets": {
+    "fullstack": ["development/*", "frontend/*", "backend/*"],
+    "frontend-only": ["development/*", "frontend/*"],
+    "backend-only": ["development/*", "backend/*"],
+    "unity": ["development/*", "game-dev/*"],
+    "nextjs": ["development/*", "frontend/*", "backend/*", "agents/nextjs"],
+    "nestjs": ["development/*", "backend/*", "agents/nestjs"],
+    "react": ["development/*", "frontend/*", "agents/react-spa"],
+    "unity-full": ["development/*", "game-dev/*", "agents/unity"]
+  },
+  "categories": {
+    "development": {
+      "name": "Development",
+      "description": "Universal software development skills that apply across every language, framework, and domain.",
+      "path": "development/skills",
+      "skills": {
+        "architecture": "01-architecture-and-system-design",
+        "git": "02-version-control-and-git",
+        "debugging": "03-debugging-and-problem-solving",
+        "code-quality": "04-code-quality-and-refactoring",
+        "testing": "05-testing-strategies"
+      },
+      "promptsPath": "development/prompts",
+      "prompts": {
+        "code-review": "code-review.md",
+        "refactor": "refactor.md",
+        "write-tests": "write-tests.md"
+      }
+    },
+    "frontend": {
+      "name": "Frontend",
+      "description": "Stack-agnostic frontend development skills — component design, state, layouts, accessibility, and performance.",
+      "path": "frontend/skills",
+      "skills": {
+        "components": "01-component-architecture",
+        "state": "02-state-management",
+        "responsive": "03-responsive-design",
+        "accessibility": "04-accessibility",
+        "performance": "05-performance-and-core-web-vitals"
+      },
+      "promptsPath": "frontend/prompts",
+      "prompts": {
+        "accessibility-audit": "accessibility-audit.md",
+        "performance-review": "performance-review.md",
+        "component-review": "component-review.md"
+      }
+    },
+    "backend": {
+      "name": "Backend",
+      "description": "Stack-agnostic backend development skills — API design, databases, auth, messaging, and observability.",
+      "path": "backend/skills",
+      "skills": {
+        "api-design": "01-api-design",
+        "database": "02-database-modelling",
+        "auth": "03-authentication-and-authorization",
+        "messaging": "04-messaging-and-async",
+        "observability": "05-observability"
+      },
+      "promptsPath": "backend/prompts",
+      "prompts": {
+        "api-review": "api-review.md",
+        "schema-review": "schema-review.md",
+        "security-audit": "security-audit.md"
+      }
+    },
+    "game-dev": {
+      "name": "Game Development",
+      "description": "Unity 6 game development skills covering the full development lifecycle.",
+      "path": "game-development/skills",
+      "skills": {
+        "project-setup": "01-project-setup",
+        "csharp": "02-csharp-scripting",
+        "scene-architecture": "03-scene-architecture",
+        "player-controller": "04-player-controller",
+        "physics": "05-physics-and-collision",
+        "input": "06-input-system",
+        "scriptable-objects": "07-scriptableobjects",
+        "ui": "08-ui-development",
+        "animation": "09-animation-system",
+        "audio": "10-audio-system",
+        "ai": "11-ai-and-navigation",
+        "shaders": "12-shaders-and-vfx",
+        "particles": "13-particle-systems",
+        "networking": "14-networking-multiplayer",
+        "performance": "15-performance-optimization",
+        "testing": "16-testing-and-debugging",
+        "build": "17-build-and-deployment"
+      },
+      "promptsPath": "game-development/prompts",
+      "prompts": {
+        "performance-profile": "performance-profile.md",
+        "scene-review": "scene-review.md"
+      }
+    },
+    "agents": {
+      "name": "Agent Instructions",
+      "description": "Curated agent instruction files that define behaviour, conventions, and workflow rules for specific tech stacks. Installed to project root.",
+      "path": "agents/instructions",
+      "type": "agent",
+      "skills": {
+        "nextjs": "nextjs-fullstack",
+        "nestjs": "nestjs-api",
+        "react-spa": "react-spa",
+        "unity": "unity-gamedev",
+        "typescript": "typescript-general"
+      }
+    }
+  }
+}
