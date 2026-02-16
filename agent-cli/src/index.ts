@@ -193,8 +193,10 @@ function runAsync(p: Promise<void>): void {
  * `agent init` — Create a .agent.json manifest in the current directory.
  *
  * Usage:
- *   agent init <source> [--output <dir>]
- *   agent init <source> --interactive     ← browse & pick interactively
+ *   agent init [source] [--output <dir>]
+ *   agent init [source] --interactive     ← browse & pick interactively
+ *
+ * If no source is provided, defaults to github:ftnilsson/agent-cli
  */
 async function cmdInit(args: string[]): Promise<void> {
   if (manifestExists()) {
@@ -204,13 +206,8 @@ async function cmdInit(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const source = args.find((a) => !a.startsWith("--"));
-  if (!source) {
-    console.error(`  ${icon.error} Usage: agent init <source> [--output <dir>] [--interactive]`);
-    console.error("  e.g. agent init github:user/Agents");
-    console.error("  e.g. agent init github:user/Agents --interactive");
-    process.exit(1);
-  }
+  const DEFAULT_SOURCE = "github:ftnilsson/agent-cli";
+  const source = args.find((a) => !a.startsWith("--")) || DEFAULT_SOURCE;
 
   const outputIdx = args.indexOf("--output");
   const outputDir =
@@ -1084,9 +1081,10 @@ function printHelp(): void {
     ${c.cyan}agent${c.reset} <command> [options]
 
   ${c.bold}COMMANDS${c.reset}
-    ${icon.init}  ${c.cyan}init${c.reset} <source>              Create a ${MANIFEST_FILE} manifest
+    ${icon.init}  ${c.cyan}init${c.reset} [source]              Create a ${MANIFEST_FILE} manifest
         --output <dir>           Output directory for skills ${c.dim}(default: .agent)${c.reset}
         -i, --interactive        Browse and select entries interactively
+        ${c.dim}(defaults to github:ftnilsson/agent-cli)${c.reset}
 
     ${icon.install}  ${c.cyan}install${c.reset}                    Pull skills + compose agent instructions
         --format <target>        Agent output format:
@@ -1142,11 +1140,11 @@ function printHelp(): void {
     during ${c.cyan}agent install${c.reset}.
 
   ${c.bold}EXAMPLES${c.reset}
-    ${c.dim}# Set up a Next.js project interactively${c.reset}
-    ${c.cyan}agent init github:your-org/Agents --interactive${c.reset}
+    ${c.dim}# Quick start with default repository${c.reset}
+    ${c.cyan}agent init --interactive${c.reset}
 
-    ${c.dim}# Or use a preset${c.reset}
-    ${c.cyan}agent init github:your-org/Agents${c.reset}
+    ${c.dim}# Or use a custom repository${c.reset}
+    ${c.cyan}agent init github:your-org/agents${c.reset}
     ${c.cyan}agent preset nextjs${c.reset}
     ${c.cyan}agent install${c.reset}
 
