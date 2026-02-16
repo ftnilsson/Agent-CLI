@@ -16,6 +16,7 @@
    ╚═══════════════════════════════════════════════════╝
 ```
 
+[![Build](https://github.com/ftnilsson/Agent-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/ftnilsson/Agent-CLI/actions/workflows/ci.yml)
 [![Tests](https://github.com/ftnilsson/Agent-CLI/actions/workflows/test.yml/badge.svg)](https://github.com/ftnilsson/Agent-CLI/actions/workflows/test.yml)
 
 A CLI tool for pulling agent skills and AI coding instructions from a central repository into any project. Pick only the skills and agent instructions you need — compose them into a single agent.md (or tool-specific format) with one command.
