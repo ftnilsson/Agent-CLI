@@ -68,9 +68,9 @@
       }
     },
     "game-dev": {
-      "name": "Game Development",
+      "name": "Unity Game Development",
       "description": "Unity 6 game development skills covering the full development lifecycle.",
-      "path": "game-development/skills",
+      "path": "unity-game-development/skills",
       "skills": {
         "project-setup": "01-project-setup",
         "csharp": "02-csharp-scripting",
@@ -90,7 +90,7 @@
         "testing": "16-testing-and-debugging",
         "build": "17-build-and-deployment"
       },
-      "promptsPath": "game-development/prompts",
+      "promptsPath": "unity-game-development/prompts",
       "prompts": {
         "performance-profile": "performance-profile.md",
         "scene-review": "scene-review.md"
