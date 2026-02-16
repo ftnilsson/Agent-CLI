@@ -46,11 +46,11 @@ node dist/index.js <command>
 ## Quick Start
 
 ```bash
-# 1. Create a .agent.json manifest (interactive mode)
-agent init github:your-org/Agents --interactive
+# 1. Quick start with default repository (interactive mode)
+agent init --interactive
 
-# 2. Or use presets for quick setup
-agent init github:your-org/Agents
+# 2. Or specify your own repository
+agent init github:your-org/agents
 agent preset nextjs
 agent install
 
@@ -62,15 +62,19 @@ agent install --format claude     # → CLAUDE.md
 
 ## Commands
 
-### `agent init <source>`
+### `agent init [source]`
 
 Create a `.agent.json` manifest in the current directory.
 
+If no source is provided, defaults to `github:ftnilsson/agent-cli` (this repository).
+
 ```bash
-agent init github:your-org/Agents
-agent init github:your-org/Agents --output .agent-skills   # custom output dir
-agent init github:your-org/Agents --interactive             # browse & select
-agent init github:your-org/Agents -i                        # shorthand
+agent init                                      # uses default repository
+agent init --interactive                        # browse default repository interactively
+agent init github:your-org/agents               # use custom repository  
+agent init github:your-org/agents --output .agent-skills   # custom output dir
+agent init github:your-org/agents --interactive             # browse & select
+agent init github:your-org/agents -i                        # shorthand
 ```
 
 | Option | Default | Description |
@@ -237,7 +241,7 @@ This lets you layer project-specific instructions on top of curated base instruc
 
 ```json
 {
-  "source": "github:your-org/Agents",
+  "source": "github:your-org/agents",
   "ref": "v1.0.0",
   "outputDir": ".agent",
   "include": [
@@ -294,6 +298,257 @@ The source repository must have a `registry.json` at its root:
 ```
 
 Categories with `"type": "agent"` are composed into the agent instructions file; categories with `"type": "skill"` (or no type) are copied as individual files.
+
+## Creating Your Own Skills Repository
+
+To use agent-cli with your own repository, follow this structure:
+
+### Required Structure
+
+```
+your-repo/
+├── registry.json          # Required: defines categories, skills, and presets
+├── development/
+│   ├── README.md
+│   ├── skills/
+│   │   ├── 01-architecture-and-system-design/
+│   │   │   └── skill.md
+│   │   ├── 02-version-control-and-git/
+│   │   │   └── skill.md
+│   │   └── 03-debugging-and-problem-solving/
+│   │       └── skill.md
+│   └── prompts/
+│       ├── code-review.md
+│       └── refactor.md
+├── backend/
+│   ├── README.md
+│   ├── skills/
+│   │   ├── 01-api-design/
+│   │   │   └── skill.md
+│   │   └── 02-database-modelling/
+│   │       └── skill.md
+│   └── prompts/
+│       └── api-review.md
+└── agents/
+    ├── README.md
+    └── instructions/
+        ├── nextjs-fullstack/
+        │   └── agent.md
+        └── react-spa/
+            └── agent.md
+```
+
+### 1. Create `registry.json`
+
+This file is **required** at the repository root. It defines:
+- **Categories**: groups of related skills or agent instructions
+- **Skills**: individual skill keys mapped to folder names
+- **Prompts**: reusable prompts for each category
+- **Presets**: predefined combinations for quick setup
+
+```json
+{
+  "version": "1.0.0",
+  "categories": {
+    "development": {
+      "name": "Development",
+      "description": "Universal software development skills.",
+      "path": "development/skills",
+      "type": "skill",
+      "skills": {
+        "architecture": "01-architecture-and-system-design",
+        "git": "02-version-control-and-git",
+        "debugging": "03-debugging-and-problem-solving"
+      },
+      "promptsPath": "development/prompts",
+      "prompts": {
+        "code-review": "code-review.md",
+        "refactor": "refactor.md"
+      }
+    },
+    "backend": {
+      "name": "Backend",
+      "description": "Backend development skills.",
+      "path": "backend/skills",
+      "type": "skill",
+      "skills": {
+        "api-design": "01-api-design",
+        "database": "02-database-modelling"
+      },
+      "promptsPath": "backend/prompts",
+      "prompts": {
+        "api-review": "api-review.md"
+      }
+    },
+    "agents": {
+      "name": "Agent Instructions",
+      "description": "AI coding agent instruction sets.",
+      "path": "agents/instructions",
+      "type": "agent",
+      "skills": {
+        "nextjs": "nextjs-fullstack",
+        "react-spa": "react-spa"
+      }
+    }
+  },
+  "presets": {
+    "fullstack": ["development/*", "backend/*"],
+    "nextjs": ["development/*", "backend/*", "agents/nextjs"]
+  }
+}
+```
+
+### 2. Skills vs Agent Instructions
+
+**Skills** (`"type": "skill"` or no type):
+- Individual, focused markdown files
+- Copied as separate files during `agent install`
+- Live in numbered folders (e.g., `01-api-design/`)
+- Each contains a `skill.md` file
+
+**Agent Instructions** (`"type": "agent"`):
+- Complete instruction sets for AI coding assistants
+- Composed together into a single output file (e.g., `agent.md`)
+- Live in named folders (e.g., `nextjs-fullstack/`)
+- Each contains an `agent.md` file
+
+### 3. Folder Naming Convention
+
+**Skills folders**: Use numbered prefixes for ordering:
+```
+01-architecture-and-system-design/
+02-version-control-and-git/
+03-debugging-and-problem-solving/
+```
+
+**Agent instruction folders**: Use descriptive names:
+```
+nextjs-fullstack/
+react-spa/
+typescript-general/
+```
+
+Both types require the corresponding markdown file inside:
+- Skills: `skill.md`
+- Agents: `agent.md`
+
+### 4. Adding Prompts (Optional)
+
+Prompts are reusable templates for common AI tasks. Add a `prompts/` folder to any category:
+
+```
+backend/
+├── skills/
+│   └── ...
+└── prompts/
+    ├── api-review.md
+    ├── schema-review.md
+    └── security-audit.md
+```
+
+Reference them in `registry.json`:
+```json
+{
+  "categories": {
+    "backend": {
+      "promptsPath": "backend/prompts",
+      "prompts": {
+        "api-review": "api-review.md",
+        "schema-review": "schema-review.md",
+        "security-audit": "security-audit.md"
+      }
+    }
+  }
+}
+```
+
+Users can then access them with:
+```bash
+agent prompt list
+agent prompt show backend/api-review
+agent prompt copy backend/api-review
+```
+
+### 5. Using Your Repository
+
+Once your repository is set up, users can pull from it:
+
+```bash
+# By default, agent-cli uses github:ftnilsson/agent-cli
+agent init                              # uses the default repository
+agent init --interactive                # browse default repository
+
+# Point to your custom repository
+agent init github:your-org/your-skills-repo
+
+# Or use a different Git source
+agent init https://github.com/your-org/your-skills-repo.git
+
+# Browse and select interactively
+agent init github:your-org/your-skills-repo --interactive
+
+# Install the selected skills
+agent install
+```
+
+### Example Skill File
+
+**File**: `development/skills/01-architecture-and-system-design/skill.md`
+
+```markdown
+# Architecture and System Design
+
+You are skilled in software architecture and system design principles.
+
+## Core Principles
+
+- Design systems that are scalable, maintainable, and testable
+- Follow SOLID principles and design patterns
+- Consider trade-offs between complexity and functionality
+- Document architectural decisions using ADRs
+
+## Approach
+
+When designing systems:
+1. Start with requirements and constraints
+2. Identify key components and their relationships
+3. Consider scalability, performance, and security
+4. Document your decisions and reasoning
+```
+
+### Example Agent File
+
+**File**: `agents/instructions/nextjs-fullstack/agent.md`
+
+```markdown
+# Next.js Fullstack Developer
+
+You are an expert Next.js developer building full-stack applications.
+
+## Stack
+
+- Next.js 14+ with App Router
+- TypeScript
+- Tailwind CSS
+- Server Actions for mutations
+- React Server Components by default
+
+## Conventions
+
+- Use Server Components unless interactivity is needed
+- Put client components in a `components/` folder with 'use client' directive
+- Use Server Actions instead of API routes for data mutations
+- Follow Next.js file-based routing conventions
+```
+
+### Tips
+
+- **Start simple**: Begin with 1-2 categories and expand as needed
+- **Use clear descriptions**: Help users understand what each skill provides
+- **Leverage presets**: Create common combinations for quick setup
+- **Number your skills**: Use prefixes (01-, 02-) to control ordering
+- **Document everything**: Add README files to explain each category
+- **Version your registry**: Update the version field when making breaking changes
 
 ## How It Works
 
