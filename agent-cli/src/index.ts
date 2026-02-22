@@ -503,19 +503,37 @@ function cmdAdd(args: string[]): void {
   const manifest = loadManifest();
   const spinner = new Spinner("Validating against registry");
   spinner.start();
-  const repoDir = cloneOrUpdate(manifest.source, manifest.ref);
+  const repoDir = cloneOrUpdate(manifest.source, "HEAD");
+  const latestRef = getLatestRef(repoDir);
   const registry = loadRegistry(repoDir);
   spinner.stop("Registry loaded");
 
+  let refUpdated = false;
+  if (manifest.ref !== latestRef) {
+    manifest.ref = latestRef;
+    refUpdated = true;
+  }
+
+  const categoryAliases: Record<string, string> = {
+    "cloud-aws": "aws-cloud",
+    "cloud-azure": "azure-cloud",
+  };
+
+  const normalizeCategoryKey = (categoryKey: string): string => {
+    return categoryAliases[categoryKey] ?? categoryKey;
+  };
+
   let added = 0;
 
-  for (const entry of args) {
+  for (const rawEntry of args) {
+    const entry = rawEntry.includes("/") ? rawEntry : `${rawEntry}/*`;
+
     // Support adding a whole category with "category/*"
     if (entry.endsWith("/*")) {
-      const catKey = entry.slice(0, -2);
+      const catKey = normalizeCategoryKey(entry.slice(0, -2));
       const cat = registry.categories[catKey];
       if (!cat) {
-        console.error(`  ${icon.error} Unknown category: "${catKey}"`);
+        console.error(`  ${icon.error} Unknown category: "${entry.slice(0, -2)}"`);
         continue;
       }
       for (const skillKey of Object.keys(cat.skills)) {
@@ -530,17 +548,18 @@ function cmdAdd(args: string[]): void {
     }
 
     // Validate "category/key"
-    const [catKey, skillKey] = entry.split("/");
-    if (!catKey || !skillKey) {
+    const [rawCatKey, skillKey] = entry.split("/");
+    const catKey = normalizeCategoryKey(rawCatKey);
+    if (!rawCatKey || !skillKey) {
       console.error(
-        `  ${icon.error} Invalid format: "${entry}". Use "category/key" (e.g. development/git, agents/nextjs).`,
+        `  ${icon.error} Invalid format: "${rawEntry}". Use "category/key" (e.g. development/git, agents/nextjs) or a category name (e.g. serverless).`,
       );
       continue;
     }
 
     const cat = registry.categories[catKey];
     if (!cat) {
-      console.error(`  ${icon.error} Unknown category: "${catKey}"`);
+      console.error(`  ${icon.error} Unknown category: "${rawCatKey}"`);
       console.error(`      Available: ${Object.keys(registry.categories).join(", ")}`);
       continue;
     }
@@ -551,18 +570,27 @@ function cmdAdd(args: string[]): void {
       continue;
     }
 
-    if (manifest.include.includes(entry)) {
-      console.log(`  ${icon.skip}  ${entry} ${c.dim}(already included)${c.reset}`);
+    const normalizedEntry = `${catKey}/${skillKey}`;
+
+    if (manifest.include.includes(normalizedEntry)) {
+      console.log(`  ${icon.skip}  ${normalizedEntry} ${c.dim}(already included)${c.reset}`);
       continue;
     }
 
-    manifest.include.push(entry);
-    console.log(`  ${icon.add}  ${entry}`);
+    manifest.include.push(normalizedEntry);
+    console.log(`  ${icon.add}  ${normalizedEntry}`);
     added++;
   }
 
-  if (added > 0) {
+  if (added > 0 || refUpdated) {
     saveManifest(manifest);
+  }
+
+  if (refUpdated) {
+    console.log(`  ${icon.update} Updated manifest ref to ${c.cyan}${latestRef}${c.reset}`);
+  }
+
+  if (added > 0) {
     console.log(`\n  ${icon.success} Added ${c.bold}${added}${c.reset} item(s). Run ${c.bold}agent install${c.reset} to download.`);
   }
 }
@@ -626,8 +654,24 @@ function cmdPreset(args: string[]): void {
   }
 
   const manifest = loadManifest();
-  const repoDir = cloneOrUpdate(manifest.source, manifest.ref);
+  const repoDir = cloneOrUpdate(manifest.source, "HEAD");
+  const latestRef = getLatestRef(repoDir);
   const registry = loadRegistry(repoDir);
+
+  let refUpdated = false;
+  if (manifest.ref !== latestRef) {
+    manifest.ref = latestRef;
+    refUpdated = true;
+  }
+
+  const categoryAliases: Record<string, string> = {
+    "cloud-aws": "aws-cloud",
+    "cloud-azure": "azure-cloud",
+  };
+
+  const normalizeCategoryKey = (categoryKey: string): string => {
+    return categoryAliases[categoryKey] ?? categoryKey;
+  };
 
   if (!registry.presets || Object.keys(registry.presets).length === 0) {
     console.error(`  ${icon.error} No presets defined in the registry.`);
@@ -636,7 +680,12 @@ function cmdPreset(args: string[]): void {
 
   // --list: show available presets
   if (args.includes("--list")) {
-    console.log(`\n  ${icon.preset} Available presets  ${c.dim}(${manifest.source} @ ${manifest.ref})${c.reset}\n`);
+    if (refUpdated) {
+      saveManifest(manifest);
+      console.log(`  ${icon.update} Updated manifest ref to ${c.cyan}${latestRef}${c.reset}`);
+    }
+
+    console.log(`\n  ${icon.preset} Available presets  ${c.dim}(${manifest.source} @ ${latestRef})${c.reset}\n`);
     for (const [name, patterns] of Object.entries(registry.presets)) {
       console.log(`    ${icon.star} ${c.bold}${name}${c.reset}`);
       for (const p of patterns) {
@@ -661,10 +710,10 @@ function cmdPreset(args: string[]): void {
   let added = 0;
   for (const pattern of patterns) {
     if (pattern.endsWith("/*")) {
-      const catKey = pattern.slice(0, -2);
+      const catKey = normalizeCategoryKey(pattern.slice(0, -2));
       const cat = registry.categories[catKey];
       if (!cat) {
-        console.warn(`  ${icon.warning} Unknown category in preset: "${catKey}"`);
+        console.warn(`  ${icon.warning} Unknown category in preset: "${pattern.slice(0, -2)}"`);
         continue;
       }
       for (const skillKey of Object.keys(cat.skills)) {
@@ -677,22 +726,31 @@ function cmdPreset(args: string[]): void {
       }
     } else {
       // Individual skill/agent reference
-      const [catKey, skillKey] = pattern.split("/");
+      const [rawCatKey, skillKey] = pattern.split("/");
+      const catKey = normalizeCategoryKey(rawCatKey);
       const cat = registry.categories[catKey];
       if (!cat || !skillKey || !cat.skills[skillKey]) {
         console.warn(`  ${icon.warning} Unknown entry in preset: "${pattern}"`);
         continue;
       }
-      if (!manifest.include.includes(pattern)) {
-        manifest.include.push(pattern);
-        console.log(`  ${icon.add}  ${pattern}`);
+      const normalizedEntry = `${catKey}/${skillKey}`;
+      if (!manifest.include.includes(normalizedEntry)) {
+        manifest.include.push(normalizedEntry);
+        console.log(`  ${icon.add}  ${normalizedEntry}`);
         added++;
       }
     }
   }
 
-  if (added > 0) {
+  if (added > 0 || refUpdated) {
     saveManifest(manifest);
+  }
+
+  if (refUpdated) {
+    console.log(`  ${icon.update} Updated manifest ref to ${c.cyan}${latestRef}${c.reset}`);
+  }
+
+  if (added > 0) {
     console.log(`\n  ${icon.success} Added ${c.bold}${added}${c.reset} item(s) via preset "${presetName}". Run ${c.bold}agent install${c.reset} to download.`);
   } else {
     console.log(`\n  ${icon.info} All entries from preset "${presetName}" are already in your manifest.`);
