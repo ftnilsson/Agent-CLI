@@ -134,6 +134,7 @@ agent list --remote   # show ALL available entries in the registry
 ```
 
 Remote listing marks included entries with `●` and available ones with `○`.
+`agent list --remote` reads the latest registry state (HEAD), not only your pinned manifest ref.
 
 ### `agent update`
 
@@ -144,22 +145,24 @@ agent update           # updates the ref
 agent install          # then re-install to apply
 ```
 
-### `agent add <category/key>`
+### `agent add <category/key|category>`
 
 Add one or more skills or agent instructions to your manifest.
 
 ```bash
 agent add development/git
 agent add development/architecture agents/nextjs    # multiple at once
+agent add serverless aws-cloud                      # bare category names = category/*
 agent add game-dev/*                                # entire category
 agent add agents/*                                  # all agent instructions
+agent add cloud-aws cloud-azure                     # aliases for aws-cloud / azure-cloud
 
 # install multiple full categories
 agent add development/* aws-cloud/* serverless/*
 agent install
 ```
 
-Validates against the remote registry — typos are caught immediately.
+Validates against the latest remote registry — typos are caught immediately. If your manifest ref is behind, it is refreshed automatically.
 
 ### `agent remove <category/key>`
 
@@ -182,6 +185,8 @@ agent preset nestjs            # apply the NestJS preset
 agent preset react             # apply the React SPA preset
 agent preset unity-full        # apply the Unity game dev preset
 ```
+
+Presets are resolved against the latest remote registry. If your manifest ref is behind, it is refreshed automatically.
 
 ### `agent diff`
 
