@@ -134,6 +134,15 @@ agent list --remote   # show ALL available entries in the registry
 ```
 
 Remote listing marks included entries with `●` and available ones with `○`.
+`agent list --remote` reads the latest registry state (HEAD), not only your pinned manifest ref.
+
+`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
+
+`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
+
+`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
+
+`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
 ### `agent update`
 
@@ -144,22 +153,25 @@ agent update           # updates the ref
 agent install          # then re-install to apply
 ```
 
-### `agent add <category/key>`
+### `agent add <category[/key]>`
 
-Add one or more skills or agent instructions to your manifest.
+Add one or more skills or agent instructions to your manifest. Accepts `category/key`, `category/*`, or just a bare category name (treated as `category/*`).
 
 ```bash
-agent add development/git
+agent add development/git                           # single skill
 agent add development/architecture agents/nextjs    # multiple at once
-agent add game-dev/*                                # entire category
+agent add serverless aws-cloud                      # bare category names (= category/*)
+agent add aws azure                                 # aliases for aws-cloud / azure-cloud
+agent add game-dev/*                                # entire category with wildcard
 agent add agents/*                                  # all agent instructions
+agent add cloud-aws cloud-azure                     # aliases for aws-cloud / azure-cloud
 
 # install multiple full categories
 agent add development/* aws-cloud/* serverless/*
 agent install
 ```
 
-Validates against the remote registry — typos are caught immediately.
+Validates against the latest remote registry — typos are caught immediately. If your manifest ref is behind, it is updated automatically.
 
 ### `agent remove <category/key>`
 
@@ -181,7 +193,11 @@ agent preset nextjs            # apply the Next.js preset
 agent preset nestjs            # apply the NestJS preset
 agent preset react             # apply the React SPA preset
 agent preset unity-full        # apply the Unity game dev preset
+agent preset aws-cloud         # apply the AWS cloud preset
+agent preset serverless-aws    # apply the serverless + AWS preset
 ```
+
+Presets are resolved against the latest remote registry. If your manifest ref is behind, it is updated automatically.
 
 ### `agent diff`
 
@@ -216,8 +232,8 @@ Browse, preview, and copy curated prompts that match your selected categories. P
 ```bash
 agent prompt list              # show prompts for your included categories
 agent prompt list --all        # show all available prompts
-agent prompt show dev/code-review    # display a prompt in the terminal
-agent prompt copy dev/code-review    # copy a prompt to your clipboard
+agent prompt show development/code-review    # display a prompt in the terminal
+agent prompt copy development/code-review    # copy a prompt to your clipboard
 ```
 
 | Subcommand | Description |

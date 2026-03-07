@@ -11,7 +11,11 @@ export interface AgentManifest {
   include: string[];
   /** Output path for composed agent instruction files (default: "agent.md") */
   agentOutput?: string;
+  /** Default install target: "copilot", "claude", "cursor", or "mixed" */
+  defaultTarget?: "copilot" | "claude" | "cursor" | "mixed";
 }
+
+export type InstallTarget = "copilot" | "claude" | "cursor" | "mixed";
 
 /** @deprecated Use AgentManifest instead */
 export type SkillsManifest = AgentManifest;
