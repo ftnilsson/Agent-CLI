@@ -57,6 +57,49 @@ export function resolveAgentOutputPaths(target: InstallTarget): string[] {
 }
 
 /**
+ * Resolve output directories for skills, prompts, and agents based on target.
+ * Returns object with paths for each content type.
+ */
+export interface ContentOutputDirs {
+  skills: string;
+  prompts: string;
+  agents: string;
+}
+
+export function resolveContentOutputDirs(target: InstallTarget): ContentOutputDirs {
+  switch (target) {
+    case "copilot":
+      return {
+        skills: ".github/skills",
+        prompts: ".github/prompts",
+        agents: ".github/agents",
+      };
+    case "claude":
+      return {
+        skills: ".claude/skills",
+        prompts: ".claude/prompts",
+        agents: ".claude/agents",
+      };
+    case "cursor":
+      return {
+        skills: ".cursor/skills",
+        prompts: ".cursor/prompts",
+        agents: ".cursor/agents",
+      };
+    case "mixed":
+      // For mixed, we install to copilot location (primary)
+      return {
+        skills: ".github/skills",
+        prompts: ".github/prompts",
+        agents: ".github/agents",
+      };
+    default:
+      const _exhaustive: never = target;
+      return _exhaustive;
+  }
+}
+
+/**
  * Validate and normalize install target from CLI args.
  * Always returns a valid target (defaults to "copilot" or provided default).
  * Supports both --target (preferred) and --format (deprecated) for backward compatibility.
