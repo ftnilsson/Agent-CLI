@@ -12,10 +12,13 @@ export interface ResolvedEntry {
   destFolder: string;
 }
 
+export type InstallTarget = "copilot" | "claude" | "cursor" | "mixed";
+
 // ─── Functions ───────────────────────────────────────────────────────────────
 
 /**
  * Resolve the output path for agent instructions based on --format flag.
+ * @deprecated Use resolveAgentOutputPaths instead
  */
 export function resolveAgentOutputPath(
   format: string | undefined,
@@ -31,6 +34,64 @@ export function resolveAgentOutputPath(
     default:
       return manifestDefault ?? "agent.md";
   }
+}
+
+/**
+ * Resolve output paths for agent instructions based on target.
+ * Returns array of paths for the target (1 for single targets, 3 for "mixed").
+ */
+export function resolveAgentOutputPaths(target: InstallTarget): string[] {
+  switch (target) {
+    case "copilot":
+      return [".github/copilot-instructions.md"];
+    case "claude":
+      return ["CLAUDE.md"];
+    case "cursor":
+      return [".cursorrules"];
+    case "mixed":
+      return [".github/copilot-instructions.md", "CLAUDE.md", ".cursorrules"];
+    default:
+      const _exhaustive: never = target;
+      return _exhaustive;
+  }
+}
+
+/**
+ * Validate and normalize install target from CLI args.
+ * Always returns a valid target (defaults to "copilot" or provided default).
+ * Supports both --target (preferred) and --format (deprecated) for backward compatibility.
+ */
+export function parseInstallTarget(
+  args: string[],
+  defaultTarget?: InstallTarget,
+): InstallTarget {
+  const all = args.includes("--all");
+  if (all) return "mixed";
+
+  // Check for --target first (preferred)
+  const targetIdx = args.indexOf("--target");
+  if (targetIdx !== -1 && targetIdx + 1 < args.length) {
+    const target = args[targetIdx + 1];
+    if (
+      target === "copilot" ||
+      target === "claude" ||
+      target === "cursor" ||
+      target === "mixed"
+    ) {
+      return target;
+    }
+  }
+
+  // Fallback to deprecated --format flag for backward compatibility
+  const formatIdx = args.indexOf("--format");
+  if (formatIdx !== -1 && formatIdx + 1 < args.length) {
+    const format = args[formatIdx + 1];
+    if (format === "copilot" || format === "claude" || format === "cursor") {
+      return format;
+    }
+  }
+
+  return defaultTarget ?? "copilot";
 }
 
 /**

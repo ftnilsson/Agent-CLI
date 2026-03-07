@@ -3,7 +3,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as childProcess from "node:child_process";
-import type { AgentManifest, Registry } from "./types.js";
+import type { AgentManifest, Registry, InstallTarget } from "./types.js";
 import {
   cloneOrUpdate,
   loadRegistry,
@@ -14,6 +14,8 @@ import { loadManifest, saveManifest, manifestExists } from "./manifest.js";
 import { generateCompletions } from "./completions.js";
 import {
   resolveAgentOutputPath,
+  resolveAgentOutputPaths,
+  parseInstallTarget,
   composeAgentFile,
   resolveIncludes,
   findAgentFile,
@@ -22,6 +24,7 @@ import {
   findMissingGitignoreEntries,
   generateSkillsIndexContent,
   type ResolvedEntry,
+  type InstallTarget as InstallTargetHelper,
 } from "./helpers.js";
 import {
   printLogo,
@@ -276,15 +279,18 @@ function cmdInstall(args: string[]): void {
     return;
   }
 
-  // Determine agent output path from --format flag or manifest
-  const formatIdx = args.indexOf("--format");
-  const format = formatIdx !== -1 ? args[formatIdx + 1] : undefined;
-  const agentOutputPath = resolveAgentOutputPath(format, manifest.agentOutput);
+  // Parse install target from CLI args
+  const target = parseInstallTarget(args, manifest.defaultTarget ?? "copilot");
+  const outputPaths = resolveAgentOutputPaths(target);
+  const shouldInstallSkills = target === "copilot" || target === "mixed";
   const skipGitignore = args.includes("--no-gitignore");
 
+  // Display info
   console.log(`\n  ${icon.link} ${c.dim}Source:${c.reset}  ${manifest.source} @ ${c.cyan}${manifest.ref}${c.reset}`);
-  console.log(`  ${icon.folder} ${c.dim}Skills:${c.reset}  ${manifest.outputDir}`);
-  console.log(`  ${icon.agent} ${c.dim}Agent:${c.reset}   ${agentOutputPath}\n`);
+  if (shouldInstallSkills) {
+    console.log(`  ${icon.folder} ${c.dim}Skills:${c.reset}  ${manifest.outputDir}`);
+  }
+  console.log(`  ${icon.agent} ${c.dim}Target:${c.reset}  ${target}${target === "mixed" ? ` (${outputPaths.join(", ")})` : ` (${outputPaths[0]})`}\n`);
 
   // 1. Clone / checkout
   const spinner = new Spinner(`Fetching from ${c.dim}${manifest.source}${c.reset}`);
@@ -298,10 +304,10 @@ function cmdInstall(args: string[]): void {
   // 3. Resolve each include entry, separating skills from agents
   const { skills, agents } = resolveIncludes(manifest.include, registry);
 
-  // 4. Install skills into output directory and collect content for composition
+  // 4. Install skills into output directory (only for copilot or mixed)
   const skillSections: string[] = [];
 
-  if (skills.length > 0) {
+  if (shouldInstallSkills && skills.length > 0) {
     const outRoot = path.resolve(manifest.outputDir);
     if (fs.existsSync(outRoot)) {
       fs.rmSync(outRoot, { recursive: true });
@@ -330,10 +336,20 @@ function cmdInstall(args: string[]): void {
 
     generateSkillsIndex(outRoot, skills);
     console.log(`\n  ${icon.install} Installed ${c.bold}${skills.length}${c.reset} skill(s) into ${c.cyan}${manifest.outputDir}/${c.reset}`);
+  } else if (!shouldInstallSkills && skills.length > 0) {
+    // For non-copilot targets, still collect skill content for composition (from source, not installed)
+    for (const { key, srcPath } of skills) {
+      const src = path.join(repoDir, srcPath);
+      const skillFile = findSkillFile(src);
+      if (skillFile) {
+        const content = fs.readFileSync(skillFile, "utf-8").trim();
+        skillSections.push(content);
+      }
+    }
   }
 
-  // 5. Compose skills + agent instructions into a single output file
-  if (skills.length > 0 || agents.length > 0) {
+  // 5. Compose skills + agent instructions into output files
+  if (skillSections.length > 0 || agents.length > 0) {
     const sections: string[] = [...skillSections];
 
     for (const { key, srcPath } of agents) {
@@ -347,7 +363,7 @@ function cmdInstall(args: string[]): void {
 
       const content = fs.readFileSync(agentFile, "utf-8").trim();
       sections.push(content);
-      console.log(`  ${icon.success}  ${key} ${icon.arrow} ${agentOutputPath}`);
+      console.log(`  ${icon.success}  ${key} ${icon.arrow} ${outputPaths.join(", ")}`);
     }
 
     // Append local overrides if present
@@ -356,62 +372,65 @@ function cmdInstall(args: string[]): void {
       const localContent = fs.readFileSync(localOverridesPath, "utf-8").trim();
       if (localContent) {
         sections.push(localContent);
-        console.log(`  ${icon.success}  ${LOCAL_INSTRUCTIONS_FILE} ${icon.arrow} ${agentOutputPath} ${c.dim}(local overrides)${c.reset}`);
+        console.log(`  ${icon.success}  ${LOCAL_INSTRUCTIONS_FILE} ${icon.arrow} ${outputPaths.join(", ")} ${c.dim}(local overrides)${c.reset}`);
       }
     }
 
     if (sections.length > 0) {
       const composed = composeAgentFile(sections);
-      const outputPath = path.resolve(agentOutputPath);
 
-      // Ensure parent directory exists (e.g., .github/)
-      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-      fs.writeFileSync(outputPath, composed);
+      // Write to all output paths (usually just 1, or 3 for mixed)
+      for (const outputPath of outputPaths) {
+        const fullPath = path.resolve(outputPath);
+        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+        fs.writeFileSync(fullPath, composed);
+      }
 
-      const totalCount = skills.length + agents.length;
-      console.log(`\n  ${icon.compose} Composed ${c.bold}${totalCount}${c.reset} item(s) into ${c.cyan}${agentOutputPath}${c.reset}`);
+      const totalCount = skillSections.length + agents.length;
+      console.log(`\n  ${icon.compose} Composed ${c.bold}${totalCount}${c.reset} item(s) into ${c.cyan}${outputPaths.join(", ")}${c.reset}`);
     }
   }
 
-  if (skills.length === 0 && agents.length === 0) {
+  if (skillSections.length === 0 && agents.length === 0) {
     console.log(`  ${icon.info} No valid entries found to install.`);
   }
 
-  // 6. Install prompts for included categories
-  const includedCats = new Set(manifest.include.map((i) => i.split("/")[0]));
-  let promptCount = 0;
-  const promptsOutDir = path.join(path.resolve(manifest.outputDir), "prompts");
+  // 6. Install prompts for included categories (only for copilot or mixed)
+  if (shouldInstallSkills) {
+    const includedCats = new Set(manifest.include.map((i) => i.split("/")[0]));
+    let promptCount = 0;
+    const promptsOutDir = path.join(path.resolve(manifest.outputDir), "prompts");
 
-  for (const [catKey, cat] of Object.entries(registry.categories)) {
-    if (!cat.prompts || !includedCats.has(catKey)) continue;
+    for (const [catKey, cat] of Object.entries(registry.categories)) {
+      if (!cat.prompts || !includedCats.has(catKey)) continue;
 
-    const promptsPath = cat.promptsPath ?? path.join(path.dirname(cat.path), "prompts");
+      const promptsPath = cat.promptsPath ?? path.join(path.dirname(cat.path), "prompts");
 
-    for (const [promptKey, filename] of Object.entries(cat.prompts)) {
-      const src = path.join(repoDir, promptsPath, filename);
-      if (!fs.existsSync(src)) {
-        console.warn(`  ${icon.warning} Prompt file not found: ${promptsPath}/${filename}`);
-        continue;
+      for (const [promptKey, filename] of Object.entries(cat.prompts)) {
+        const src = path.join(repoDir, promptsPath, filename);
+        if (!fs.existsSync(src)) {
+          console.warn(`  ${icon.warning} Prompt file not found: ${promptsPath}/${filename}`);
+          continue;
+        }
+
+        const destDir = path.join(promptsOutDir, catKey);
+        fs.mkdirSync(destDir, { recursive: true });
+        const dest = path.join(destDir, filename);
+        fs.copyFileSync(src, dest);
+        console.log(`  ${icon.prompt}  ${catKey}/${promptKey} ${icon.arrow} ${path.relative(process.cwd(), dest)}`);
+        promptCount++;
       }
+    }
 
-      const destDir = path.join(promptsOutDir, catKey);
-      fs.mkdirSync(destDir, { recursive: true });
-      const dest = path.join(destDir, filename);
-      fs.copyFileSync(src, dest);
-      console.log(`  ${icon.prompt}  ${catKey}/${promptKey} ${icon.arrow} ${path.relative(process.cwd(), dest)}`);
-      promptCount++;
+    if (promptCount > 0) {
+      console.log(`\n  ${icon.prompt} Installed ${c.bold}${promptCount}${c.reset} prompt(s) into ${c.cyan}${path.relative(process.cwd(), promptsOutDir)}/${c.reset}`);
     }
   }
 
-  if (promptCount > 0) {
-    console.log(`\n  ${icon.prompt} Installed ${c.bold}${promptCount}${c.reset} prompt(s) into ${c.cyan}${path.relative(process.cwd(), promptsOutDir)}/${c.reset}`);
-  }
-
-  // 7. .gitignore guard — only guard the raw downloads cache (outputDir),
-  //    not the composed agent output file (which should be committed and shared)
-  if (!skipGitignore) {
+  // 7. .gitignore guard — only guard the .agent folder when it's actually used
+  if (!skipGitignore && shouldInstallSkills) {
     checkGitignore(manifest.outputDir);
-  } else {
+  } else if (skipGitignore) {
     console.log(`\n  ${icon.info} Skipping .gitignore check ${c.dim}(--no-gitignore)${c.reset}`);
   }
 }
@@ -1178,11 +1197,12 @@ function printHelp(): void {
         ${c.dim}(defaults to github:ftnilsson/agent-cli)${c.reset}
 
     ${icon.install}  ${c.cyan}install${c.reset}                    Pull skills + compose agent instructions
-        --format <target>        Agent output format:
+        --target <target>        Install target (default: copilot):
                                    copilot  ${icon.arrow} .github/copilot-instructions.md
-                                   cursor   ${icon.arrow} .cursorrules
                                    claude   ${icon.arrow} CLAUDE.md
-                                   ${c.dim}(default ${icon.arrow} agent.md)${c.reset}
+                                   cursor   ${icon.arrow} .cursorrules
+        --all                    Install to all targets simultaneously
+        --format <target>        ${c.dim}(deprecated: use --target instead)${c.reset}
         --no-gitignore           Skip auto-adding generated files to .gitignore
 
     ${icon.list}  ${c.cyan}list${c.reset}                       Show entries in your manifest
