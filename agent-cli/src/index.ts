@@ -15,6 +15,7 @@ import { generateCompletions } from "./completions.js";
 import {
   resolveAgentOutputPath,
   resolveAgentOutputPaths,
+  resolveContentOutputDirs,
   parseInstallTarget,
   composeAgentFile,
   resolveIncludes,
@@ -282,13 +283,14 @@ function cmdInstall(args: string[]): void {
   // Parse install target from CLI args
   const target = parseInstallTarget(args, manifest.defaultTarget ?? "copilot");
   const outputPaths = resolveAgentOutputPaths(target);
+  const contentDirs = resolveContentOutputDirs(target);
   const shouldInstallSkills = target === "copilot" || target === "mixed";
-  const skipGitignore = args.includes("--no-gitignore");
+  const skipGitignore = args.includes("--skip-gitignore");
 
   // Display info
   console.log(`\n  ${icon.link} ${c.dim}Source:${c.reset}  ${manifest.source} @ ${c.cyan}${manifest.ref}${c.reset}`);
   if (shouldInstallSkills) {
-    console.log(`  ${icon.folder} ${c.dim}Skills:${c.reset}  ${manifest.outputDir}`);
+    console.log(`  ${icon.folder} ${c.dim}Skills:${c.reset}  ${contentDirs.skills}`);
   }
   console.log(`  ${icon.agent} ${c.dim}Target:${c.reset}  ${target}${target === "mixed" ? ` (${outputPaths.join(", ")})` : ` (${outputPaths[0]})`}\n`);
 
@@ -304,11 +306,11 @@ function cmdInstall(args: string[]): void {
   // 3. Resolve each include entry, separating skills from agents
   const { skills, agents } = resolveIncludes(manifest.include, registry);
 
-  // 4. Install skills into output directory (only for copilot or mixed)
+  // 4. Install skills into target-specific output directory (only for copilot or mixed)
   const skillSections: string[] = [];
 
   if (shouldInstallSkills && skills.length > 0) {
-    const outRoot = path.resolve(manifest.outputDir);
+    const outRoot = path.resolve(contentDirs.skills);
     if (fs.existsSync(outRoot)) {
       fs.rmSync(outRoot, { recursive: true });
     }
@@ -335,7 +337,7 @@ function cmdInstall(args: string[]): void {
     }
 
     generateSkillsIndex(outRoot, skills);
-    console.log(`\n  ${icon.install} Installed ${c.bold}${skills.length}${c.reset} skill(s) into ${c.cyan}${manifest.outputDir}/${c.reset}`);
+    console.log(`\n  ${icon.install} Installed ${c.bold}${skills.length}${c.reset} skill(s) into ${c.cyan}${contentDirs.skills}/${c.reset}`);
   } else if (!shouldInstallSkills && skills.length > 0) {
     // For non-copilot targets, still collect skill content for composition (from source, not installed)
     for (const { key, srcPath } of skills) {
@@ -395,11 +397,30 @@ function cmdInstall(args: string[]): void {
     console.log(`  ${icon.info} No valid entries found to install.`);
   }
 
-  // 6. Install prompts for included categories (only for copilot or mixed)
+  // 6. Install agents (agent.md files) to target-specific directory (only for copilot or mixed)
+  if (shouldInstallSkills && agents.length > 0) {
+    const agentsOutDir = path.resolve(contentDirs.agents);
+    fs.mkdirSync(agentsOutDir, { recursive: true });
+    
+    for (const { key, srcPath } of agents) {
+      const src = path.join(repoDir, srcPath);
+      const agentFile = findAgentFile(src);
+      if (agentFile) {
+        const fileName = path.basename(agentFile);
+        const dest = path.join(agentsOutDir, `${key.replace("/", "-")}.md`);
+        fs.copyFileSync(agentFile, dest);
+        console.log(`  ${icon.success}  ${key} ${icon.arrow} ${path.relative(process.cwd(), dest)}`);
+      }
+    }
+    
+    console.log(`\n  ${icon.install} Installed ${c.bold}${agents.length}${c.reset} agent(s) into ${c.cyan}${contentDirs.agents}/${c.reset}`);
+  }
+
+  // 7. Install prompts for included categories (only for copilot or mixed)
   if (shouldInstallSkills) {
     const includedCats = new Set(manifest.include.map((i) => i.split("/")[0]));
     let promptCount = 0;
-    const promptsOutDir = path.join(path.resolve(manifest.outputDir), "prompts");
+    const promptsOutDir = path.resolve(contentDirs.prompts);
 
     for (const [catKey, cat] of Object.entries(registry.categories)) {
       if (!cat.prompts || !includedCats.has(catKey)) continue;
@@ -427,11 +448,14 @@ function cmdInstall(args: string[]): void {
     }
   }
 
-  // 7. .gitignore guard — only guard the .agent folder when it's actually used
+  // 8. .gitignore guard — check and update .gitignore for target-specific directories
   if (!skipGitignore && shouldInstallSkills) {
-    checkGitignore(manifest.outputDir);
+    const dirsToCheck = [contentDirs.skills, contentDirs.prompts, contentDirs.agents];
+    for (const dir of dirsToCheck) {
+      checkGitignore(dir);
+    }
   } else if (skipGitignore) {
-    console.log(`\n  ${icon.info} Skipping .gitignore check ${c.dim}(--no-gitignore)${c.reset}`);
+    console.log(`\n  ${icon.info} Skipping .gitignore check ${c.dim}(--skip-gitignore)${c.reset}`);
   }
 }
 
@@ -802,9 +826,10 @@ function cmdDiff(args: string[]): void {
     return;
   }
 
-  const formatIdx = args.indexOf("--format");
-  const format = formatIdx !== -1 ? args[formatIdx + 1] : undefined;
-  const agentOutputPath = resolveAgentOutputPath(format, manifest.agentOutput);
+  // Support both --target (new) and --format (deprecated) for backward compatibility
+  const target = parseInstallTarget(args, manifest.defaultTarget ?? "copilot");
+  const outputPaths = resolveAgentOutputPaths(target);
+  const agentOutputPath = outputPaths[0]; // For diff, use first output path
 
   const spinner = new Spinner("Comparing manifest against installed files");
   spinner.start();
@@ -1198,12 +1223,11 @@ function printHelp(): void {
 
     ${icon.install}  ${c.cyan}install${c.reset}                    Pull skills + compose agent instructions
         --target <target>        Install target (default: copilot):
-                                   copilot  ${icon.arrow} .github/copilot-instructions.md
+                                   copilot  ${icon.arrow} .github/copilot-instructions.md + .agent/
                                    claude   ${icon.arrow} CLAUDE.md
                                    cursor   ${icon.arrow} .cursorrules
-        --all                    Install to all targets simultaneously
-        --format <target>        ${c.dim}(deprecated: use --target instead)${c.reset}
-        --no-gitignore           Skip auto-adding generated files to .gitignore
+                                   mixed    ${icon.arrow} All three
+        --skip-gitignore         Skip auto-adding generated files to .gitignore
 
     ${icon.list}  ${c.cyan}list${c.reset}                       Show entries in your manifest
         --remote                 Show all available entries from the registry
@@ -1214,6 +1238,7 @@ function printHelp(): void {
         e.g. agent add development/git agents/nextjs
         e.g. agent add game-dev/*          ${c.dim}(add entire category)${c.reset}
         e.g. agent add agents/*            ${c.dim}(add all agent instructions)${c.reset}
+        ${c.dim}Category aliases: aws→aws-cloud, azure→azure-cloud, gamedev→game-dev${c.reset}
 
     ${icon.remove}  ${c.cyan}remove${c.reset} <category/key>      Remove entries from the manifest
         e.g. agent remove development/git
@@ -1225,7 +1250,7 @@ function printHelp(): void {
         e.g. agent preset --list
 
     ${icon.diff}  ${c.cyan}diff${c.reset}                       Preview what would change on next install
-        --format <target>        Same format options as install
+        --target <target>        Install target (copilot, claude, cursor, mixed)
 
     ${icon.scaffold}  ${c.cyan}create${c.reset} <agent|skill>       Scaffold a new agent.md or skill.md template
         e.g. agent create agent
@@ -1262,10 +1287,11 @@ function printHelp(): void {
     ${c.dim}# Preview changes before installing${c.reset}
     ${c.cyan}agent diff${c.reset}
 
-    ${c.dim}# Output for different tools${c.reset}
-    ${c.cyan}agent install --format copilot${c.reset}
-    ${c.cyan}agent install --format cursor${c.reset}
-    ${c.cyan}agent install --format claude${c.reset}
+    ${c.dim}# Install to specific targets${c.reset}
+    ${c.cyan}agent install --target copilot${c.reset}
+    ${c.cyan}agent install --target cursor${c.reset}
+    ${c.cyan}agent install --target claude${c.reset}
+    ${c.cyan}agent install --target mixed${c.reset}
 
     ${c.dim}# Scaffold templates${c.reset}
     ${c.cyan}agent create agent${c.reset}

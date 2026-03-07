@@ -57,6 +57,49 @@ export function resolveAgentOutputPaths(target: InstallTarget): string[] {
 }
 
 /**
+ * Resolve output directories for skills, prompts, and agents based on target.
+ * Returns object with paths for each content type.
+ */
+export interface ContentOutputDirs {
+  skills: string;
+  prompts: string;
+  agents: string;
+}
+
+export function resolveContentOutputDirs(target: InstallTarget): ContentOutputDirs {
+  switch (target) {
+    case "copilot":
+      return {
+        skills: ".github/skills",
+        prompts: ".github/prompts",
+        agents: ".github/agents",
+      };
+    case "claude":
+      return {
+        skills: ".claude/skills",
+        prompts: ".claude/prompts",
+        agents: ".claude/agents",
+      };
+    case "cursor":
+      return {
+        skills: ".cursor/skills",
+        prompts: ".cursor/prompts",
+        agents: ".cursor/agents",
+      };
+    case "mixed":
+      // For mixed, we install to copilot location (primary)
+      return {
+        skills: ".github/skills",
+        prompts: ".github/prompts",
+        agents: ".github/agents",
+      };
+    default:
+      const _exhaustive: never = target;
+      return _exhaustive;
+  }
+}
+
+/**
  * Validate and normalize install target from CLI args.
  * Always returns a valid target (defaults to "copilot" or provided default).
  * Supports both --target (preferred) and --format (deprecated) for backward compatibility.
@@ -65,10 +108,7 @@ export function parseInstallTarget(
   args: string[],
   defaultTarget?: InstallTarget,
 ): InstallTarget {
-  const all = args.includes("--all");
-  if (all) return "mixed";
-
-  // Check for --target first (preferred)
+  // Check for --target (required in v2.0)
   const targetIdx = args.indexOf("--target");
   if (targetIdx !== -1 && targetIdx + 1 < args.length) {
     const target = args[targetIdx + 1];
@@ -82,13 +122,16 @@ export function parseInstallTarget(
     }
   }
 
-  // Fallback to deprecated --format flag for backward compatibility
-  const formatIdx = args.indexOf("--format");
-  if (formatIdx !== -1 && formatIdx + 1 < args.length) {
-    const format = args[formatIdx + 1];
-    if (format === "copilot" || format === "claude" || format === "cursor") {
-      return format;
-    }
+  // Check for removed flags and provide helpful error messages
+  if (args.includes("--format")) {
+    throw new Error(
+      `--format is no longer supported (removed in v2.0).\nUse --target copilot|claude|cursor|mixed instead.\nExample: agent install --target copilot`,
+    );
+  }
+  if (args.includes("--all")) {
+    throw new Error(
+      `--all is no longer supported (removed in v2.0).\nUse --target mixed instead.\nExample: agent install --target mixed`,
+    );
   }
 
   return defaultTarget ?? "copilot";
