@@ -65,10 +65,7 @@ export function parseInstallTarget(
   args: string[],
   defaultTarget?: InstallTarget,
 ): InstallTarget {
-  const all = args.includes("--all");
-  if (all) return "mixed";
-
-  // Check for --target first (preferred)
+  // Check for --target (required in v2.0)
   const targetIdx = args.indexOf("--target");
   if (targetIdx !== -1 && targetIdx + 1 < args.length) {
     const target = args[targetIdx + 1];
@@ -82,13 +79,16 @@ export function parseInstallTarget(
     }
   }
 
-  // Fallback to deprecated --format flag for backward compatibility
-  const formatIdx = args.indexOf("--format");
-  if (formatIdx !== -1 && formatIdx + 1 < args.length) {
-    const format = args[formatIdx + 1];
-    if (format === "copilot" || format === "claude" || format === "cursor") {
-      return format;
-    }
+  // Check for removed flags and provide helpful error messages
+  if (args.includes("--format")) {
+    throw new Error(
+      `--format is no longer supported (removed in v2.0).\nUse --target copilot|claude|cursor|mixed instead.\nExample: agent install --target copilot`,
+    );
+  }
+  if (args.includes("--all")) {
+    throw new Error(
+      `--all is no longer supported (removed in v2.0).\nUse --target mixed instead.\nExample: agent install --target mixed`,
+    );
   }
 
   return defaultTarget ?? "copilot";

@@ -78,11 +78,11 @@ agent init github:your-org/agents
 agent preset nextjs
 agent install
 
-# 3. Output for your preferred AI tool
+# 3. Install to your preferred AI tool
 agent install --target copilot    # → .github/copilot-instructions.md + .agent/ folder
 agent install --target claude     # → CLAUDE.md (no .agent/ folder)
 agent install --target cursor     # → .cursorrules (no .agent/ folder)
-agent install --all               # → All three files simultaneously
+agent install --target mixed      # → All three files simultaneously
 ```
 
 ## Commands
@@ -121,8 +121,8 @@ agent install                       # default: installs to .github/copilot-instr
 agent install --target copilot      # Copilot (.github/copilot-instructions.md) + .agent/
 agent install --target claude       # Claude (CLAUDE.md) - no .agent/ folder
 agent install --target cursor       # Cursor (.cursorrules) - no .agent/ folder
-agent install --all                 # All three targets simultaneously
-agent install --no-gitignore        # skip adding generated files to .gitignore
+agent install --target mixed        # All three targets simultaneously
+agent install --skip-gitignore      # skip adding generated files to .gitignore
 ```
 
 #### Understanding Install Targets
@@ -134,7 +134,7 @@ When you specify a target, the behavior changes:
 | `copilot` (default) | `.github/copilot-instructions.md` | ✅ Yes | ✅ Yes |
 | `claude` | `CLAUDE.md` | ❌ No | ❌ No |
 | `cursor` | `.cursorrules` | ❌ No | ❌ No |
-| `--all` (mixed) | All 3 files | ✅ Yes | ✅ Yes |
+| `mixed` | All 3 files | ✅ Yes | ✅ Yes |
 
 **Why?** Tools like Claude and Cursor don't need the `.agent/` folder — they only need the composed instruction file. This keeps your repository cleaner.
 
@@ -149,24 +149,38 @@ If your `.agent.json` has a `defaultTarget` field, that will be used when no `--
 }
 ```
 
-#### Backward Compatibility
+### Version 2.0 Migration Guide
 
-The deprecated `--format` flag still works:
+Version 2.0 removed the deprecated flags. If you were using the old syntax, here's how to migrate:
+
+| Old Syntax | New Syntax | Notes |
+|---|---|---|
+| `agent install --format copilot` | `agent install --target copilot` | — |
+| `agent install --format claude` | `agent install --target claude` | — |
+| `agent install --format cursor` | `agent install --target cursor` | — |
+| `agent install --all` | `agent install --target mixed` | — |
+| `agent install --no-gitignore` | `agent install --skip-gitignore` | — |
 
 ```bash
-agent install --format copilot   # same as --target copilot
-agent install --format claude    # same as --target claude
-agent install --format cursor    # same as --target cursor
+# OLD (no longer works):
+agent install --format copilot
+agent install --all
+agent install --no-gitignore
+
+# NEW (v2.0):
+agent install --target copilot
+agent install --target mixed
+agent install --skip-gitignore
 ```
+
+#### Installation Options
 
 | Option | Description |
 |---|---|
 | `--target <target>` | Install target — `copilot`, `claude`, `cursor`, or `mixed` (default: `copilot`) |
-| `--all` | Install to all three targets simultaneously (equivalent to `--target mixed`) |
-| `--format <target>` | ⚠️ Deprecated — use `--target` instead |
-| `--no-gitignore` | Skip auto-adding generated files to `.gitignore` |
+| `--skip-gitignore` | Skip auto-adding generated files to `.gitignore` |
 
-By default, the CLI checks that generated files are listed in `.gitignore` and adds them automatically. Use `--no-gitignore` to opt out.
+By default, the CLI checks that generated files are listed in `.gitignore` and adds them automatically. Use `--skip-gitignore` to opt out.
 
 ### `agent list`
 
@@ -248,7 +262,9 @@ Preview what would change on the next `agent install` — like `terraform plan` 
 
 ```bash
 agent diff
-agent diff --format copilot
+agent diff --target copilot
+agent diff --target claude
+agent diff --target mixed
 ```
 
 Output markers:
