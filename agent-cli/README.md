@@ -142,6 +142,8 @@ Remote listing marks included entries with `●` and available ones with `○`.
 
 `--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
+`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
+
 ### `agent update`
 
 Fetch the latest ref (tag or commit) from the source repo and update `.agent.json`.
@@ -158,11 +160,9 @@ Add one or more skills or agent instructions to your manifest. Accepts `category
 ```bash
 agent add development/git                           # single skill
 agent add development/architecture agents/nextjs    # multiple at once
-
 agent add serverless aws-cloud                      # bare category names (= category/*)
 agent add aws azure                                 # aliases for aws-cloud / azure-cloud
 agent add game-dev/*                                # entire category with wildcard
-
 agent add agents/*                                  # all agent instructions
 agent add cloud-aws cloud-azure                     # aliases for aws-cloud / azure-cloud
 

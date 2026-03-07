@@ -79,9 +79,10 @@ agent preset nextjs
 agent install
 
 # 3. Output for your preferred AI tool
-agent install --format copilot    # → .github/copilot-instructions.md
-agent install --format cursor     # → .cursorrules
-agent install --format claude     # → CLAUDE.md
+agent install --target copilot    # → .github/copilot-instructions.md + .agent/ folder
+agent install --target claude     # → CLAUDE.md (no .agent/ folder)
+agent install --target cursor     # → .cursorrules (no .agent/ folder)
+agent install --all               # → All three files simultaneously
 ```
 
 ## Commands
@@ -109,21 +110,60 @@ agent init github:your-org/agents -i                        # shorthand
 ### `agent install`
 
 Read `.agent.json` and install everything:
-- **Skills** → copied into the output directory
-- **Agent instructions** → composed into a single file
+- **Skills** → copied into the output directory (only for `--target copilot` or `--all`)
+- **Agent instructions** → composed into one or more output files
 - **Local overrides** → automatically appended from `local-instructions.md`
 
+#### Basic Usage
+
 ```bash
-agent install
-agent install --format copilot     # output to .github/copilot-instructions.md
-agent install --format cursor      # output to .cursorrules
-agent install --format claude      # output to CLAUDE.md
-agent install --no-gitignore       # skip adding generated files to .gitignore
+agent install                       # default: installs to .github/copilot-instructions.md
+agent install --target copilot      # Copilot (.github/copilot-instructions.md) + .agent/
+agent install --target claude       # Claude (CLAUDE.md) - no .agent/ folder
+agent install --target cursor       # Cursor (.cursorrules) - no .agent/ folder
+agent install --all                 # All three targets simultaneously
+agent install --no-gitignore        # skip adding generated files to .gitignore
+```
+
+#### Understanding Install Targets
+
+When you specify a target, the behavior changes:
+
+| Target | Output Files | Skills Installed to .agent/ | Prompts Installed |
+|---|---|---|---|
+| `copilot` (default) | `.github/copilot-instructions.md` | ✅ Yes | ✅ Yes |
+| `claude` | `CLAUDE.md` | ❌ No | ❌ No |
+| `cursor` | `.cursorrules` | ❌ No | ❌ No |
+| `--all` (mixed) | All 3 files | ✅ Yes | ✅ Yes |
+
+**Why?** Tools like Claude and Cursor don't need the `.agent/` folder — they only need the composed instruction file. This keeps your repository cleaner.
+
+If your `.agent.json` has a `defaultTarget` field, that will be used when no `--target` is specified:
+
+```json
+{
+  "source": "github:ftnilsson/agent-cli",
+  "ref": "main",
+  "include": ["development/architecture"],
+  "defaultTarget": "claude"
+}
+```
+
+#### Backward Compatibility
+
+The deprecated `--format` flag still works:
+
+```bash
+agent install --format copilot   # same as --target copilot
+agent install --format claude    # same as --target claude
+agent install --format cursor    # same as --target cursor
 ```
 
 | Option | Description |
 |---|---|
-| `--format <target>` | Agent output format — `copilot`, `cursor`, `claude` (default: `agent.md`) |
+| `--target <target>` | Install target — `copilot`, `claude`, `cursor`, or `mixed` (default: `copilot`) |
+| `--all` | Install to all three targets simultaneously (equivalent to `--target mixed`) |
+| `--format <target>` | ⚠️ Deprecated — use `--target` instead |
 | `--no-gitignore` | Skip auto-adding generated files to `.gitignore` |
 
 By default, the CLI checks that generated files are listed in `.gitignore` and adds them automatically. Use `--no-gitignore` to opt out.
@@ -146,6 +186,8 @@ Remote listing marks included entries with `●` and available ones with `○`.
 
 `--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
+`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
+
 ### `agent update`
 
 Fetch the latest ref (tag or commit) from the source repo and update `.agent.json`.
@@ -161,11 +203,9 @@ Add one or more skills or agent instructions to your manifest. Accepts `category
 ```bash
 agent add development/git                           # single skill
 agent add development/architecture agents/nextjs    # multiple at once
-
 agent add serverless aws-cloud                      # bare category names (= category/*)
 agent add aws azure                                 # aliases for aws-cloud / azure-cloud
 agent add game-dev/*                                # entire category with wildcard
-
 agent add agents/*                                  # all agent instructions
 agent add cloud-aws cloud-azure                     # aliases for aws-cloud / azure-cloud
 
