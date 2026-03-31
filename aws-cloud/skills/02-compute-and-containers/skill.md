@@ -20,6 +20,8 @@
 MyFunction:
   Type: AWS::Serverless::Function
   Properties:
+    Handler: index.handler
+    CodeUri: src/my-function/
     Runtime: nodejs20.x
     Architectures: [arm64]          # Use Graviton for ~20% cost saving
     MemorySize: 1024                 # Profile with Lambda Power Tuning
