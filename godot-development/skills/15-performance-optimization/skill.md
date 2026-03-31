@@ -24,7 +24,7 @@ func _process(delta: float) -> void:
 
 - Throttle expensive checks (group queries, distance scans) to run 5–10× per second, not every frame
 - Use `distance_squared_to()` instead of `distance_to()` for all range comparisons — avoids square root
-- Disable `set_process(false)` and `set_physics_process(false)` on nodes that do not need per-frame updates
+- Call `set_process(false)` and `set_physics_process(false)` on nodes that do not need per-frame updates
 - Avoid allocating `Array`, `Dictionary`, or objects inside `_process()` — allocate in `_ready()` and reuse
 
 ## Object Pooling
