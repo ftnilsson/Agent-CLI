@@ -1,24 +1,19 @@
 {
   "version": "1.0.0",
   "presets": {
-    "fullstack": ["development/*", "frontend/*", "backend/*"],
-    "frontend-only": ["development/*", "frontend/*"],
-    "backend-only": ["development/*", "backend/*"],
-    "unity": ["development/*", "game-dev/*"],
-    "godot": ["development/*", "godot-dev/*"],
+    "web": ["development/*", "frontend/*", "backend/*"],
+    "frontend": ["development/*", "frontend/*"],
+    "backend": ["development/*", "backend/*"],
+    "typescript": ["development/*", "agents/typescript"],
     "nextjs": ["development/*", "frontend/*", "backend/*", "agents/nextjs"],
     "nestjs": ["development/*", "backend/*", "agents/nestjs"],
     "react": ["development/*", "frontend/*", "agents/react-spa"],
-    "unity-full": ["development/*", "game-dev/*", "agents/unity"],
-    "godot-full": ["development/*", "godot-dev/*", "agents/godot"],
-    "aws-cloud": ["development/*", "backend/*", "aws-cloud/*"],
-    "aws-fullstack": ["development/*", "frontend/*", "backend/*", "aws-cloud/*"],
-    "azure-cloud": ["development/*", "backend/*", "azure-cloud/*"],
-    "azure-fullstack": ["development/*", "frontend/*", "backend/*", "azure-cloud/*"],
+    "unity": ["development/*", "game-dev/*", "agents/unity"],
+    "godot": ["development/*", "godot-dev/*", "agents/godot"],
+    "aws": ["development/*", "backend/*", "aws-cloud/*"],
+    "azure": ["development/*", "backend/*", "azure-cloud/*"],
     "serverless-aws": ["development/*", "backend/*", "serverless/*", "aws-cloud/*"],
-    "serverless-azure": ["development/*", "backend/*", "serverless/*", "azure-cloud/*"],
-    "serverless-fullstack-aws": ["development/*", "frontend/*", "backend/*", "serverless/*", "aws-cloud/*"],
-    "serverless-fullstack-azure": ["development/*", "frontend/*", "backend/*", "serverless/*", "azure-cloud/*"]
+    "serverless-azure": ["development/*", "backend/*", "serverless/*", "azure-cloud/*"]
   },
   "categories": {
     "development": {

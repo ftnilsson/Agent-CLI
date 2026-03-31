@@ -268,7 +268,6 @@ export async function updateProfile(formData: FormData) {
 - **Never use `getServerSideProps` or `getStaticProps`.** Those are Pages Router patterns.
 - **Never access `process.env` in Client Components** without the `NEXT_PUBLIC_` prefix.
 - **Never use `router.push` for simple navigation.** Use `<Link>`.
-- **Never disable TypeScript strict mode** or use `any` types.
 - **Never store server state in client state (`useState`).** Server Components eliminate the need for most client-side state.
 - **Never use `fetch` inside `useEffect` when the data could be fetched on the server.**
 - **Never add `suppressHydrationWarning` to hide bugs.** Fix the hydration mismatch instead.

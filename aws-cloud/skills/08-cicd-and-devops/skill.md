@@ -1,51 +1,21 @@
 # CI/CD & DevOps
 
-## Description
+## Tool Selection
 
-Build and operate deployment pipelines for AWS workloads using AWS-native tools (CodePipeline, CodeBuild, CodeDeploy) and third-party tools (GitHub Actions). This skill covers pipeline design, deployment strategies, infrastructure deployment automation, and the DevOps practices that enable safe, fast, and frequent releases.
+| Tool | Use when |
+|------|----------|
+| GitHub Actions | GitHub-hosted repos; flexible workflows; preferred default |
+| CodePipeline + CodeBuild | AWS-native requirements, tight IAM integration, CodeDeploy for EC2/ECS |
+| GitLab CI | GitLab-hosted repos |
 
-## When To Use
+- Default to GitHub Actions with AWS OIDC for new projects
+- Use CodePipeline only when AWS-native tooling is a hard requirement
 
-- Setting up a deployment pipeline for a new service
-- Choosing between AWS CodePipeline, GitHub Actions, or other CI/CD tools
-- Implementing blue/green, canary, or rolling deployment strategies
-- Automating infrastructure deployments (CDK/Terraform in CI)
-- Adding quality gates (tests, security scanning, approval steps) to pipelines
-- Troubleshooting deployment failures and rollbacks
-
-## Prerequisites
-
-- Familiarity with Git workflows (branching, pull requests, merging)
-- Understanding of AWS compute services (Lambda, ECS, EC2)
-- Basic understanding of Docker and container registries (ECR)
-- Familiarity with at least one IaC tool (CDK, CloudFormation, Terraform)
-
-## Instructions
-
-### 1. Choose Your CI/CD Tool
-
-| Tool | Best for | Trade-offs |
-|------|----------|------------|
-| **GitHub Actions** | GitHub-hosted repos, flexible workflows, large marketplace | Running outside AWS (cross-account auth needed) |
-| **CodePipeline + CodeBuild** | AWS-native, tight IAM integration, CodeDeploy for EC2/ECS | Less flexible, more verbose configuration |
-| **GitLab CI** | GitLab-hosted repos, integrated DevSecOps | Similar to GitHub Actions trade-offs |
-
-**Recommendation:** Use **GitHub Actions** for most projects. It's more flexible, has better developer experience, and integrates well with AWS via OIDC.
-
-### 2. GitHub Actions with AWS
-
-**OIDC authentication (no long-lived keys):**
+## GitHub Actions with AWS OIDC
 
 ```yaml
-# .github/workflows/deploy.yml
-name: Deploy
-
-on:
-  push:
-    branches: [main]
-
 permissions:
-  id-token: write    # Required for OIDC
+  id-token: write
   contents: read
 
 jobs:
@@ -54,151 +24,89 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsDeployRole
           aws-region: eu-west-1
-
-      - name: Deploy CDK
-        run: |
-          npm ci
-          npx cdk deploy --all --require-approval never
+      - run: npx cdk deploy --all --require-approval never
 ```
 
-**Key practices:**
+- Use OIDC authentication — never store AWS access keys in GitHub secrets
+- Scope the IAM trust policy to specific repository and branch (`token.actions.githubusercontent.com` conditions)
+- Use GitHub Environments for production deployments — enforce required reviewers and branch restrictions
+- Cache dependencies with `actions/cache` to reduce build times
+- Use reusable workflows for shared pipeline logic across repositories
 
-- **Use OIDC, not access keys.** Configure an IAM Identity Provider for GitHub and an IAM role with trust policy scoped to your repo/branch.
-- **Use GitHub Environments** for deployment protection rules (required reviewers, wait timers, branch restrictions).
-- **Cache dependencies** (`actions/cache`) to speed up builds.
-- **Use reusable workflows** for shared pipeline logic across repos.
+## Pipeline Stages
 
-### 3. Pipeline Stages
+Every production pipeline must include:
 
-```
-┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-│  Source   │──▶│  Build   │──▶│  Test    │──▶│  Stage   │──▶│  Prod    │
-│          │   │          │   │          │   │          │   │          │
-│ Git push │   │ Compile  │   │ Unit     │   │ Deploy   │   │ Deploy   │
-│ PR merge │   │ Docker   │   │ Integ    │   │ Smoke    │   │ Canary   │
-│          │   │ CDK synth│   │ Security │   │ Approval │   │ Full     │
-└──────────┘   └──────────┘   └──────────┘   └──────────┘   └──────────┘
-```
+1. Source — trigger on push to main or PR merge
+2. Build — compile, build Docker image, run `cdk synth` or `terraform plan`
+3. Test — unit tests, integration tests, security scanning (Trivy, CDK Nag, Checkov)
+4. Staging — deploy to staging, run smoke tests, hold for approval if required
+5. Production — deploy with a safe strategy, monitor error rate and latency, auto-rollback on breach
 
-**Each stage should:**
+- Run `cdk diff` or `terraform plan` on pull requests and post output as a PR comment
+- Never deploy to production without first deploying and validating in staging
 
-1. **Source** — Trigger on push to main (or PR merge). Include the full source + IaC.
-2. **Build** — Compile code, build Docker images, run `cdk synth` / `terraform plan`.
-3. **Test** — Unit tests, integration tests, security scanning (Snyk, Trivy, CDK Nag).
-4. **Staging** — Deploy to staging, run smoke tests, hold for approval (if needed).
-5. **Production** — Deploy with a safe strategy (canary, blue/green), monitor for errors, auto-rollback.
+## Deployment Strategies
 
-### 4. Deployment Strategies
+| Strategy | Rollback | Use when |
+|----------|----------|----------|
+| All-at-once | Redeploy | Dev/test only |
+| Rolling | Redeploy | ECS services, EC2 fleets |
+| Blue/Green | Instant (switch target group) | ECS services, EC2 with CodeDeploy |
+| Canary | Instant (shift traffic back) | Production APIs, high-traffic Lambda |
 
-| Strategy | Risk | Rollback speed | Complexity | Use case |
-|----------|------|---------------|------------|----------|
-| **All-at-once** | High | Redeploy | Low | Dev/test environments |
-| **Rolling** | Medium | Redeploy | Medium | ECS services, EC2 fleets |
-| **Blue/Green** | Low | Instant (switch target group) | Medium | ECS, EC2, Lambda aliases |
-| **Canary** | Lowest | Instant (shift traffic back) | High | Production APIs, high-traffic services |
-
-**ECS blue/green with CodeDeploy:**
+- Use Blue/Green for ECS services in production — configure via CodeDeploy deployment controller
+- Use Lambda aliases with canary deployment preferences and automatic CloudWatch alarm rollback
+- Never use all-at-once deployments in production
 
 ```yaml
-# CDK ECS service with blue/green deployment
-const service = new ecs.FargateService(this, 'Service', {
-  cluster,
-  taskDefinition,
-  deploymentController: {
-    type: ecs.DeploymentControllerType.CODE_DEPLOY,
-  },
-});
-```
-
-**Lambda canary with aliases:**
-
-```yaml
-AutoPublishAlias: live
+# SAM canary deployment with auto-rollback
 DeploymentPreference:
-  Type: Canary10Percent5Minutes    # 10% traffic for 5 min, then 100%
+  Type: Canary10Percent5Minutes
   Alarms:
     - !Ref ErrorAlarm
     - !Ref LatencyAlarm
 ```
 
-### 5. Infrastructure Deployment in CI
+## Quality Gates
 
-**CDK deployment pipeline:**
+Include all of the following in every pipeline:
 
-```yaml
-- name: CDK Diff (PR only)
-  if: github.event_name == 'pull_request'
-  run: npx cdk diff 2>&1 | tee cdk-diff.txt
+- Unit tests — fail the build on any failure
+- Linting — ESLint, Ruff, Prettier, or equivalent for the language
+- Security scanning — `trivy image`, `npm audit`, `checkov`, or `cdk-nag`
+- IaC validation — `cdk diff`, `terraform plan`, or `cfn-lint`
+- Integration tests — run against a deployed staging environment
+- Smoke tests — hit critical endpoints immediately after deployment
+- Auto-rollback — configure CloudWatch alarm-based rollback on canary and blue/green deployments
 
-- name: Post diff as PR comment
-  if: github.event_name == 'pull_request'
-  uses: actions/github-script@v7
-  with:
-    script: |
-      const diff = require('fs').readFileSync('cdk-diff.txt', 'utf8');
-      github.rest.issues.createComment({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        issue_number: context.issue.number,
-        body: `### CDK Diff\n\`\`\`\n${diff}\n\`\`\``
-      });
+## Infrastructure Deployment in CI
 
-- name: CDK Deploy (main only)
-  if: github.ref == 'refs/heads/main'
-  run: npx cdk deploy --all --require-approval never
-```
+- Run `cdk diff` on pull requests; run `cdk deploy` only on merge to main
+- Run `terraform plan` on pull requests; run `terraform apply` only on merge to main
+- Never use `--require-approval never` without gating on the `cdk diff` in the PR
+- Use separate IAM roles for CI/CD with the minimum permissions required to deploy each stack
 
-**Terraform pipeline:**
+## Anti-patterns
 
-```yaml
-- name: Terraform Plan
-  run: terraform plan -out=tfplan -no-color
-
-- name: Terraform Apply (main only)
-  if: github.ref == 'refs/heads/main'
-  run: terraform apply -auto-approve tfplan
-```
-
-### 6. Quality Gates
-
-Add these checks to every pipeline:
-
-- [ ] **Unit tests** — `npm test`, `pytest`, `dotnet test`
-- [ ] **Linting** — `eslint`, `ruff`, `prettier`
-- [ ] **Security scanning** — `npm audit`, `trivy image`, `checkov`, `cdk-nag`
-- [ ] **IaC validation** — `cdk diff`, `terraform plan`, `cfn-lint`
-- [ ] **Integration tests** — Run against staging environment
-- [ ] **Smoke tests** — Hit critical endpoints after deployment
-- [ ] **Auto-rollback** — On alarm breach, roll back automatically
+| Pattern | Fix |
+|---------|-----|
+| AWS access keys in GitHub secrets | Use OIDC with a scoped IAM role |
+| No staging environment | Deploy to staging before every production deployment |
+| Long-lived feature branches | Use trunk-based development with feature flags |
+| Manual deployment steps | Automate every step — no SSH, no console clicks |
+| No rollback plan | Use blue/green or canary — every deploy must have instant rollback |
+| Pipelines with 20+ stages and 30-minute builds | Keep total pipeline time under 10 minutes |
 
 ## Best Practices
 
-- **Deploy frequently.** Small, frequent deployments are safer than large, infrequent ones.
-- **Use OIDC for CI/CD auth.** No long-lived AWS access keys in GitHub secrets.
-- **Always `plan`/`diff` before `apply`/`deploy`.** Review infrastructure changes before they happen.
-- **Separate application and infrastructure deployments** when they have different lifecycles.
-- **Use feature flags** to decouple deployment from release. Deploy code to production with the feature disabled, then enable it gradually.
-- **Monitor deployments.** Watch error rates and latency during and after every deployment. Auto-rollback on SLO breach.
-
-## Common Pitfalls
-
-- **No staging environment.** Deploying directly to production without testing in a staging environment is gambling.
-- **Long-lived feature branches.** Branches that live for weeks diverge from main and create painful merges. Use trunk-based development.
-- **Manual deployment steps.** "SSH into the server and run the script" is not CI/CD. Automate everything.
-- **No rollback plan.** Every deployment should have a tested rollback path. Blue/green and canary provide instant rollback.
-- **Over-complex pipelines.** A pipeline with 30 stages and 20-minute builds discourages frequent deployment. Keep it fast (<10 minutes for most projects).
-- **Ignoring pipeline security.** CI/CD pipelines have broad AWS access. Protect them like production infrastructure — branch protection, required reviews, audit logs.
-
-## Reference
-
-- [AWS CodePipeline User Guide](https://docs.aws.amazon.com/codepipeline/latest/userguide/welcome.html)
-- [GitHub Actions with AWS](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
-- [AWS CodeDeploy — ECS Blue/Green](https://docs.aws.amazon.com/codedeploy/latest/userguide/deployment-groups-create-blue-green-ecs.html)
-- [SAM Canary Deployments](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/automating-updates-to-serverless-apps.html)
-- [Deployment Strategies on AWS](https://docs.aws.amazon.com/whitepapers/latest/practicing-continuous-integration-continuous-delivery/deployment-methods.html)
+- Deploy small changes frequently — large infrequent deployments are higher risk
+- Separate application and infrastructure pipeline triggers — they have different lifecycles
+- Use feature flags to decouple deployment from release — deploy to production disabled, enable gradually
+- Monitor error rates and latency during every deployment window — auto-rollback on SLO breach
+- Protect CI/CD IAM roles as strictly as production infrastructure — audit, rotate, scope tightly
+- Require pull request reviews and branch protection on main for all production-connected repositories

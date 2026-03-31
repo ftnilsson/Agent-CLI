@@ -1,158 +1,74 @@
 # Animation System
 
-## Description
+## AnimationPlayer Rules
 
-This skill covers Godot 4's animation tools — `AnimationPlayer`, `AnimationTree`, blend trees, procedural animation with `Tween`, and the integration of animation with gameplay logic via signals and method calls.
+- Cache `AnimationPlayer` with `@onready` — never call `$AnimationPlayer` in `_process()`
+- Connect `animation_finished` signal in `_ready()` to trigger gameplay events after animations complete
+- Use `await _anim.animation_finished` for sequential animations — never call `play()` twice immediately
+- Never animate the same property in both code and `AnimationPlayer` simultaneously — they conflict
+- Use animation libraries to organize animations by category (locomotion, combat, death)
+- Define animation names as constants to prevent typo bugs
 
-## When To Use
-
-- Animating characters, enemies, or objects
-- Building animation state machines with `AnimationTree`
-- Using blend trees for smooth animation transitions
-- Creating procedural animations with `Tween`
-- Triggering gameplay events from animation keyframes
-
-## Prerequisites
-
-- Godot 4.3+ project
-- Understanding of nodes and the scene tree
-- GDScript fundamentals (signals, `@onready`)
-
-## Instructions
-
-### 1. AnimationPlayer Basics
-
-```gdscript
-@onready var _anim: AnimationPlayer = $AnimationPlayer
-
-func _ready() -> void:
-    _anim.animation_finished.connect(_on_animation_finished)
-
-func play_attack() -> void:
-    _anim.play("attack")
-    await _anim.animation_finished
-    # Attack animation done — return to idle
-    _anim.play("idle")
-
-func _on_animation_finished(anim_name: StringName) -> void:
-    match anim_name:
-        "death":
-            queue_free()
-        "attack":
-            _can_attack = true
-```
-
-### 2. AnimationTree & State Machine
-
-Set up an `AnimationTree` with an `AnimationNodeStateMachine` as the root:
-
-```
-AnimationTree
-└── AnimationNodeStateMachine
-    ├── idle
-    ├── run
-    ├── jump
-    ├── fall
-    └── attack
-```
+## AnimationTree & State Machine
 
 ```gdscript
 @onready var _anim_tree: AnimationTree = $AnimationTree
-@onready var _state_machine: AnimationNodeStateMachinePlayback = _anim_tree["parameters/playback"]
+@onready var _state_machine: AnimationNodeStateMachinePlayback = \
+    _anim_tree["parameters/playback"]
+
+func _ready() -> void:
+    _anim_tree.active = true
 
 func _physics_process(delta: float) -> void:
-    # Update blend parameters
     _anim_tree["parameters/run/blend_position"] = velocity.length() / max_speed
-    
-    # Transition states
     if is_on_floor():
-        if absf(velocity.x) > 10.0:
-            _state_machine.travel("run")
-        else:
-            _state_machine.travel("idle")
+        _state_machine.travel("run" if absf(velocity.x) > 10.0 else "idle")
     else:
         _state_machine.travel("jump" if velocity.y < 0 else "fall")
 ```
 
-### 3. Blend Trees
+- Use `AnimationTree` with `AnimationNodeStateMachine` for characters with 4+ animations
+- Always set `AnimationTree.active = true` in `_ready()` — it does not process when inactive
+- Cache `AnimationNodeStateMachinePlayback` in an `@onready` variable — it is retrieved every frame otherwise
+- Use `travel()` to transition states — it respects transition conditions and blend times
 
-For smooth transitions between animations (e.g., walk ↔ run):
+## Blend Trees
 
-```gdscript
-# BlendSpace1D — blend by speed
-_anim_tree["parameters/movement/blend_position"] = velocity.length() / max_speed
+- Use `AnimationNodeBlendSpace1D` to blend animations by a single scalar (speed, health)
+- Use `AnimationNodeBlendSpace2D` to blend by a 2D vector (top-down directional movement)
+- Update blend positions every physics frame: `_anim_tree["parameters/movement/blend_position"] = velocity.normalized()`
+- Use `AnimationNodeBlend2` for simple 0–1 blends between two animations
 
-# BlendSpace2D — blend by direction (top-down games)
-_anim_tree["parameters/movement/blend_position"] = Vector2(velocity.x, velocity.y).normalized()
-```
+## Tweens (Procedural Animation)
 
-### 4. Tweens (Procedural Animation)
+- Use `create_tween()` for procedural and UI animations — bounce, fade, slide, shake
+- Chain sequential steps with `tween.tween_property()` calls
+- Use `tween.parallel()` to animate multiple properties simultaneously
+- Set easing with `tween.set_ease(Tween.EASE_OUT)` and `tween.set_trans(Tween.TRANS_BACK)`
+- Check `is_inside_tree()` before tweening a node that may have been freed
 
-```gdscript
-# Bounce effect
-func bounce() -> void:
-    var tween := create_tween()
-    tween.tween_property(_sprite, "scale", Vector2(1.2, 0.8), 0.1)
-    tween.tween_property(_sprite, "scale", Vector2(0.9, 1.1), 0.1)
-    tween.tween_property(_sprite, "scale", Vector2.ONE, 0.1)
+## Animation-Driven Gameplay Events
 
-# Fade in
-func fade_in(duration: float = 0.5) -> void:
-    modulate.a = 0.0
-    var tween := create_tween()
-    tween.tween_property(self, "modulate:a", 1.0, duration)
+- Add Call Method tracks in `AnimationPlayer` to enable/disable hitboxes at exact animation frames
+- Add Call Method tracks to trigger SFX and particle effects synchronized to animation
+- Never use `Timer` nodes to guess when an animation reaches a specific frame — use method call tracks
 
-# UI slide in
-func slide_in() -> void:
-    var tween := create_tween()
-    tween.set_ease(Tween.EASE_OUT)
-    tween.set_trans(Tween.TRANS_BACK)
-    position.x = -300.0
-    tween.tween_property(self, "position:x", 0.0, 0.4)
+## Anti-patterns
 
-# Chain and parallel tweens
-func complex_animation() -> void:
-    var tween := create_tween()
-    tween.tween_property(self, "position", target_pos, 0.5)
-    tween.parallel().tween_property(self, "rotation", PI, 0.5)
-    tween.tween_callback(queue_free)  # After both finish
-```
-
-### 5. Animation Method Calls & Signals
-
-In the AnimationPlayer timeline, add **Call Method** or **Emit Signal** tracks:
-
-```gdscript
-# Called from an animation keyframe
-func spawn_hitbox() -> void:
-    _hitbox.monitoring = true
-
-func despawn_hitbox() -> void:
-    _hitbox.monitoring = false
-
-func play_sfx(sound_name: String) -> void:
-    AudioManager.play_sfx(sound_name)
-```
+| Pattern | Fix |
+|---------|-----|
+| `_anim.play("run")` then `_anim.play("idle")` immediately | Use `await _anim.animation_finished` between calls |
+| Code sets `position` while AnimationPlayer also animates it | Animate only in AnimationPlayer or only in code — not both |
+| `AnimationTree.active` left false | Set `active = true` in `_ready()` |
+| `$AnimationTree["parameters/playback"]` accessed every frame | Cache as `@onready var _state_machine` |
+| Timer used to trigger hitbox mid-attack | Use Call Method track in AnimationPlayer timeline |
+| Hardcoded animation name strings scattered in scripts | Define animation names as constants |
 
 ## Best Practices
 
-- Use `AnimationTree` with state machines for characters with 4+ animations.
-- Use `Tween` for procedural / dynamic animations — UI transitions, effects, juice.
-- Trigger gameplay events (hitboxes, SFX, particles) from animation keyframes, not timers.
-- Keep animations in their own `AnimationPlayer` nodes — separate visual from logic.
-- Use animation libraries to organize animations by category.
-- Cache `AnimationNodeStateMachinePlayback` in `@onready`.
-
-## Common Pitfalls
-
-- **Fighting between animation and code.** If AnimationPlayer animates `position` and code also sets it, they conflict. Use separate properties or disable one.
-- **Not using `await` for sequential animations.** Calling `play()` twice immediately skips the first.
-- **Forgetting to set AnimationTree to active.** Set `active = true` or it won't process.
-- **Using `Tween` on freed nodes.** Check `is_inside_tree()` before tweening.
-- **Hardcoded animation names.** Use constants or enums for animation names.
-
-## Reference
-
-- [AnimationPlayer](https://docs.godotengine.org/en/stable/tutorials/animation/introduction.html)
-- [AnimationTree](https://docs.godotengine.org/en/stable/tutorials/animation/animation_tree.html)
-- [Tween](https://docs.godotengine.org/en/stable/classes/class_tween.html)
+- Use `AnimationPlayer` directly for simple objects (doors, coins, environmental effects)
+- Use `AnimationTree` with state machine for characters with locomotion, combat, and death states
+- Use `Tween` for all procedural and UI animations — lightweight and no timeline editing required
+- Trigger hitbox activation, SFX, and VFX from animation method call tracks for frame-perfect sync
+- Separate animation state from movement state — drive the animation tree from movement data, not the reverse
+- Keep `AnimationPlayer` nodes focused: one player per logical animation set

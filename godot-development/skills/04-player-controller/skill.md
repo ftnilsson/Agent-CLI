@@ -1,25 +1,14 @@
 # Player Controller
 
-## Description
+## CharacterBody Rules
 
-This skill covers implementing player character controllers in Godot 4 using `CharacterBody2D` and `CharacterBody3D`. It includes movement, jumping, state machines, and camera systems for both 2D and 3D games.
+- Always use `_physics_process(delta)` for movement — never `_process(delta)`
+- Always call `move_and_slide()` at the end of `_physics_process()` — it handles slopes, walls, and collision response
+- Apply gravity by incrementing `velocity.y` each physics tick when not on floor
+- Multiply acceleration and friction by `delta` for frame-rate independence
+- Never rotate the `CharacterBody3D` itself for visual rotation — rotate a child `Model` node
 
-## When To Use
-
-- Implementing player movement for a 2D platformer, top-down, or 3D game
-- Building a state machine for player animations and behaviour
-- Setting up camera follow systems
-- Handling slopes, walls, and edge cases in character movement
-
-## Prerequisites
-
-- Godot 4.3+ with Input Map actions configured
-- Understanding of `_physics_process()` and `move_and_slide()`
-- GDScript fundamentals (type hints, signals, `@onready`)
-
-## Instructions
-
-### 1. 2D Platformer Controller
+## 2D Platformer Controller
 
 ```gdscript
 class_name PlayerController2D
@@ -29,7 +18,6 @@ extends CharacterBody2D
 @export var move_speed: float = 200.0
 @export var acceleration: float = 1500.0
 @export var friction: float = 1200.0
-
 @export_group("Jumping")
 @export var jump_force: float = -350.0
 @export var gravity: float = 980.0
@@ -40,162 +28,68 @@ var _coyote_timer: float = 0.0
 var _jump_buffer_timer: float = 0.0
 var _was_on_floor: bool = false
 
-@onready var _sprite: Sprite2D = $Sprite2D
-@onready var _anim: AnimationPlayer = $AnimationPlayer
-
 func _physics_process(delta: float) -> void:
-    _apply_gravity(delta)
-    _handle_jump(delta)
-    _handle_movement(delta)
-    _update_animations()
-    move_and_slide()
-    _was_on_floor = is_on_floor()
-
-func _apply_gravity(delta: float) -> void:
     if not is_on_floor():
         velocity.y += gravity * delta
-
-func _handle_jump(delta: float) -> void:
-    # Coyote time
+    _coyote_timer = maxf(0.0, _coyote_timer - delta)
+    _jump_buffer_timer = maxf(0.0, _jump_buffer_timer - delta)
     if _was_on_floor and not is_on_floor():
         _coyote_timer = coyote_time
-    _coyote_timer = maxf(0.0, _coyote_timer - delta)
-    
-    # Jump buffer
     if Input.is_action_just_pressed("jump"):
         _jump_buffer_timer = jump_buffer_time
-    _jump_buffer_timer = maxf(0.0, _jump_buffer_timer - delta)
-    
-    # Execute jump
-    var can_jump := is_on_floor() or _coyote_timer > 0.0
-    if _jump_buffer_timer > 0.0 and can_jump:
+    if _jump_buffer_timer > 0.0 and (is_on_floor() or _coyote_timer > 0.0):
         velocity.y = jump_force
         _coyote_timer = 0.0
         _jump_buffer_timer = 0.0
-    
-    # Variable jump height
     if Input.is_action_just_released("jump") and velocity.y < 0:
         velocity.y *= 0.5
-
-func _handle_movement(delta: float) -> void:
     var direction := Input.get_axis("move_left", "move_right")
-    
-    if direction != 0.0:
-        velocity.x = move_toward(velocity.x, direction * move_speed, acceleration * delta)
-        _sprite.flip_h = direction < 0
-    else:
-        velocity.x = move_toward(velocity.x, 0.0, friction * delta)
-
-func _update_animations() -> void:
-    if not is_on_floor():
-        _anim.play("jump" if velocity.y < 0 else "fall")
-    elif absf(velocity.x) > 10.0:
-        _anim.play("run")
-    else:
-        _anim.play("idle")
-```
-
-### 2. 3D Third-Person Controller
-
-```gdscript
-class_name PlayerController3D
-extends CharacterBody3D
-
-@export_group("Movement")
-@export var move_speed: float = 5.0
-@export var sprint_speed: float = 8.0
-@export var acceleration: float = 10.0
-@export var rotation_speed: float = 10.0
-
-@export_group("Jumping")
-@export var jump_force: float = 5.0
-@export var gravity: float = 15.0
-
-@onready var _camera_pivot: Node3D = $CameraPivot
-@onready var _model: Node3D = $Model
-@onready var _anim_tree: AnimationTree = $AnimationTree
-
-func _physics_process(delta: float) -> void:
-    # Gravity
-    if not is_on_floor():
-        velocity.y -= gravity * delta
-    
-    # Jump
-    if Input.is_action_just_pressed("jump") and is_on_floor():
-        velocity.y = jump_force
-    
-    # Movement relative to camera
-    var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-    var camera_basis := _camera_pivot.global_basis
-    var direction := (camera_basis * Vector3(input.x, 0, input.y)).normalized()
-    direction.y = 0
-    
-    var speed := sprint_speed if Input.is_action_pressed("sprint") else move_speed
-    
-    if direction.length() > 0.1:
-        velocity.x = lerpf(velocity.x, direction.x * speed, acceleration * delta)
-        velocity.z = lerpf(velocity.z, direction.z * speed, acceleration * delta)
-        # Rotate model to face movement direction
-        var target_rotation := atan2(-direction.x, -direction.z)
-        _model.rotation.y = lerp_angle(_model.rotation.y, target_rotation, rotation_speed * delta)
-    else:
-        velocity.x = lerpf(velocity.x, 0.0, acceleration * delta)
-        velocity.z = lerpf(velocity.z, 0.0, acceleration * delta)
-    
+    velocity.x = move_toward(velocity.x,
+        direction * move_speed if direction != 0.0 else 0.0,
+        (acceleration if direction != 0.0 else friction) * delta)
     move_and_slide()
+    _was_on_floor = is_on_floor()
 ```
 
-### 3. State Machine Integration
+## 3D Movement
 
-```gdscript
-# Player with state machine
-extends CharacterBody2D
+- Get input with `Input.get_vector("move_left", "move_right", "move_forward", "move_back")`
+- Project input through `camera_pivot.global_basis` to get camera-relative world direction
+- Zero out the Y component of the direction vector before normalizing
+- Rotate the child `Model` node toward the movement direction using `lerp_angle()`
+- Use `lerpf()` for smooth acceleration toward target speed
 
-@onready var state_machine: StateMachine = $StateMachine
+## State Machine Integration
 
-# States are child nodes — IdleState, RunState, JumpState, FallState
-# Each state handles its own input, movement, and animation
-```
+- Use a `StateMachine` node with `State` child nodes for players with 4+ distinct states
+- Each `State` handles its own `enter()`, `exit()`, `update(delta)`, and `physics_update(delta)`
+- States call `state_machine.transition_to(target_state)` — never modify `current_state` directly
+- Keep movement, animation, and sound logic inside the relevant state node
 
-```gdscript
-# states/idle.gd
-extends State
+## Input Rules
 
-func enter() -> void:
-    owner.get_node("AnimationPlayer").play("idle")
+- Always use Input Map action names — never check raw key codes like `KEY_SPACE`
+- Use `Input.get_axis()` for horizontal movement and `Input.get_vector()` for 2D directional movement
+- Implement coyote time (grace window after leaving floor) for responsive platformer feel
+- Implement jump buffering (queue jump slightly before landing) for responsive platformer feel
 
-func physics_update(delta: float) -> void:
-    var direction := Input.get_axis("move_left", "move_right")
-    
-    if direction != 0.0:
-        state_machine.transition_to($"../RunState")
-    
-    if Input.is_action_just_pressed("jump") and owner.is_on_floor():
-        state_machine.transition_to($"../JumpState")
-    
-    if not owner.is_on_floor():
-        state_machine.transition_to($"../FallState")
-```
+## Anti-patterns
+
+| Pattern | Fix |
+|---------|-----|
+| Movement code in `_process(delta)` | Move all `CharacterBody` logic to `_physics_process(delta)` |
+| Missing `delta` on gravity/acceleration | Always multiply by `delta`: `velocity.y += gravity * delta` |
+| No coyote time in platformer | Add a `_coyote_timer` grace window after leaving the floor |
+| `Input.is_key_pressed(KEY_SPACE)` for jump | Use `Input.is_action_just_pressed("jump")` |
+| Rotating `CharacterBody3D` for visual direction | Rotate a child `Model` node instead |
+| Inline movement + animation + sound in one method | Separate into focused private methods or state nodes |
 
 ## Best Practices
 
-- Always use `move_and_slide()` — it handles slopes, walls, and collision response.
-- Implement coyote time and jump buffering for responsive platformer controls.
-- Use `move_toward()` and `lerp()` for smooth acceleration/deceleration.
-- Separate movement logic from animation logic.
-- Use a state machine for characters with more than 3 states.
-- Use `_physics_process()` for all movement code.
-
-## Common Pitfalls
-
-- **Using `_process()` for movement.** Always use `_physics_process()` for `CharacterBody` movement.
-- **Forgetting delta.** Multiply speed by `delta` for frame-rate-independent movement (gravity, acceleration). Note: `velocity` in `move_and_slide()` is already per-second.
-- **No coyote time.** Players feel like they "fell off" without a small grace window.
-- **Hardcoded input keys.** Always use Input Map action names.
-- **Rotating the CharacterBody instead of a child model in 3D.** Rotate a child `Model` node for visual rotation.
-
-## Reference
-
-- [CharacterBody2D](https://docs.godotengine.org/en/stable/classes/class_characterbody2d.html)
-- [CharacterBody3D](https://docs.godotengine.org/en/stable/classes/class_characterbody3d.html)
-- [Using move_and_slide](https://docs.godotengine.org/en/stable/tutorials/physics/using_character_body_2d.html)
+- Expose all movement parameters with `@export` so they can be tuned in the Inspector
+- Use `@export_group()` to organize Inspector properties (Movement, Jumping, Camera)
+- Use `move_toward()` for 2D horizontal movement with acceleration/friction
+- Use `lerpf()` for 3D movement blending toward target velocity
+- Separate animation logic from movement logic — update animations after `move_and_slide()`
+- Use a state machine for complex players; use inline `match` for simple 2–3 state players
+- Always handle variable jump height by reducing `velocity.y` on early button release

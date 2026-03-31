@@ -1,145 +1,96 @@
 # Responsive Design & Layouts
 
-## Description
+## Layout Tool Selection
 
-Build UIs that work across screen sizes, input methods, and device capabilities — without maintaining separate codebases. This skill covers the universal layout and responsive design principles that apply regardless of your CSS framework or component library: fluid grids, container-aware components, breakpoint strategy, and the techniques that eliminate the need for most media queries.
+| Tool | Best for | Avoid when |
+|------|----------|------------|
+| **Flexbox** | Single-axis layouts: nav bars, button groups, card rows | You need explicit row and column control |
+| **CSS Grid** | Two-dimensional layouts: page shells, dashboards, galleries | Single-row content that simply wraps |
+| **Container Queries** | Component-level responsiveness based on parent width | You need viewport-level breakpoints |
 
-## When To Use
+Use Grid for the page skeleton and Flexbox for component internals. Combine them freely.
 
-- Starting a new page or feature layout
-- A design is provided for desktop and you need to make it work on mobile
-- Choosing between CSS Grid, Flexbox, or a layout framework
-- Components break or look wrong at certain screen sizes
-- Evaluating whether a UI needs a dedicated mobile experience vs a responsive one
+## Mobile-First Approach
 
-## Prerequisites
-
-- Solid understanding of CSS box model, display types, and positioning
-- Basic familiarity with media queries and viewport units
-
-## Instructions
-
-### 1. Start Mobile-First
-
-Write base styles for the smallest viewport, then layer on complexity for larger screens with `min-width` media queries:
+Write base styles for the smallest viewport, then layer complexity upward with `min-width` queries:
 
 ```css
-/* Base: mobile (single column) */
-.grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
+.grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
 
-/* Tablet and up */
 @media (min-width: 48rem) {
   .grid { grid-template-columns: repeat(2, 1fr); }
 }
-
-/* Desktop */
 @media (min-width: 64rem) {
   .grid { grid-template-columns: repeat(3, 1fr); }
 }
 ```
 
-**Why mobile-first:**
-- Forces you to prioritise content — what matters most gets designed first
-- Progressive enhancement is more robust than graceful degradation
-- Mobile styles are simpler; adding complexity is easier than removing it
+- Design for the smallest viewport first — it forces content prioritisation.
+- Adding complexity is safer than removing it after the fact.
 
-### 2. Use Intrinsic Sizing Over Fixed Breakpoints
+## Intrinsic Sizing — Reduce Media Queries
 
-Many layouts don't need media queries at all. Modern CSS can respond to available space:
+Prefer layouts that respond to available space without explicit breakpoints:
 
-```css
-/* Cards that auto-wrap: minimum 280px, fill remaining space */
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
-  gap: 1rem;
-}
-```
+- `repeat(auto-fill, minmax(min(280px, 100%), 1fr))` — self-wrapping card grids
+- `flex-wrap: wrap` with `flex-basis` — flowing layouts
+- `clamp(min, preferred, max)` — fluid typography and spacing
+- `min()`, `max()` — cap dimensions without media queries
 
-**Key intrinsic techniques:**
-- `auto-fill` / `auto-fit` with `minmax()` for self-wrapping grids
-- `flex-wrap: wrap` with `flex-basis` for flowing layouts
-- `clamp()` for fluid typography and spacing: `font-size: clamp(1rem, 0.5rem + 1.5vw, 1.5rem)`
-- `min()`, `max()` for capping dimensions without media queries
+## Spacing and Sizing Scale
 
-### 3. Choose the Right Layout Tool
-
-| Tool | Best for | Avoid when |
-|------|----------|------------|
-| **Flexbox** | Single-axis layouts: nav bars, button groups, card rows | You need explicit row+column control |
-| **CSS Grid** | Two-dimensional layouts: page shells, dashboards, galleries | Single-row content that just wraps |
-| **Container Queries** | Component-level responsiveness based on parent width | You need viewport-level breakpoints |
-
-Use them together — Grid for the page skeleton, Flexbox for component internals.
-
-### 4. Design with a Spacing and Sizing Scale
-
-Use a consistent scale (e.g., 4px base: 4, 8, 12, 16, 24, 32, 48, 64) via CSS custom properties:
+Define a consistent scale via CSS custom properties and reference it everywhere:
 
 ```css
 :root {
-  --space-xs: 0.25rem;
-  --space-sm: 0.5rem;
-  --space-md: 1rem;
-  --space-lg: 1.5rem;
-  --space-xl: 2rem;
-  --space-2xl: 3rem;
+  --space-xs: 0.25rem;  --space-sm: 0.5rem;
+  --space-md: 1rem;     --space-lg: 1.5rem;
+  --space-xl: 2rem;     --space-2xl: 3rem;
 }
 ```
 
-- Every margin, padding, and gap should reference the scale
-- Fluid scaling with `clamp()` keeps proportions right across viewports
-- A consistent scale creates visual rhythm without effort
+Every margin, padding, and gap must reference the scale. Never use arbitrary pixel values for spacing.
 
-### 5. Handle Typography Responsively
+## Fluid Typography
 
-Don't set fixed `font-size` values at every breakpoint. Use fluid type:
+Never set fixed `font-size` values at individual breakpoints. Use `clamp()`:
 
 ```css
 :root {
   --text-base: clamp(1rem, 0.875rem + 0.5vw, 1.125rem);
-  --text-lg: clamp(1.25rem, 1rem + 0.75vw, 1.5rem);
-  --text-xl: clamp(1.5rem, 1.125rem + 1.25vw, 2rem);
+  --text-lg:   clamp(1.25rem, 1rem + 0.75vw, 1.5rem);
+  --text-xl:   clamp(1.5rem, 1.125rem + 1.25vw, 2rem);
 }
 ```
 
-- Set `font-size` on `<html>` for global scaling
-- Use `rem` for font sizes and `em` for component-relative spacing
-- Ensure line-height adjusts with size (tighter for headings, looser for body)
+- Use `rem` for font sizes and `em` for component-relative spacing.
+- Never use `px` for font sizes — it disables the user's browser font-size preference.
+- Always clamp viewport-unit font sizes; `font-size: 5vw` alone is unreadable at extremes.
 
-### 6. Consider Touch and Input Method
+## Touch and Input
 
-Responsive isn't just about size — input method matters:
+- Touch targets: minimum 44×44px (Apple HIG) / 48×48dp (Material).
+- Never hide critical functionality behind hover. Use `@media (hover: hover)` to add hover enhancements only where supported.
+- Visible keyboard focus indicators are non-negotiable.
 
-- **Touch targets:** Minimum 44×44px (Apple HIG) / 48×48dp (Material)
-- **Hover states:** Never hide critical functionality behind hover. Use `@media (hover: hover)` to add hover enhancements only when supported
-- **Focus indicators:** Visible keyboard focus styles are non-negotiable for accessibility
+## Anti-patterns
+
+| Pattern | Fix |
+|---------|-----|
+| Three fixed layouts (mobile / tablet / desktop) | Design a fluid continuum; breakpoints adjust layout, not define it |
+| `px` for font sizes | Use `rem`; respect user font preferences |
+| Hiding content on mobile with `display: none` | Remove content that isn't important enough for mobile, or rethink the priority |
+| `font-size: 5vw` without `clamp()` | Always clamp viewport-unit values |
+| `overflow: hidden` to mask layout bugs | Find and fix the actual overflow source |
+| Arbitrary high `z-index` values | Define a z-index scale; understand stacking contexts |
 
 ## Best Practices
 
-- **Set a max-width on content containers.** Lines wider than ~75 characters hurt readability. Use `max-width: 70ch` for text blocks.
-- **Use container queries for reusable components.** A card component should respond to its container width, not the viewport. This makes it work in sidebars, modals, and full-width layouts without modification.
-- **Test at arbitrary widths, not just device presets.** Bugs live between breakpoints. Drag the browser edge continuously.
-- **Use logical properties** (`margin-inline`, `padding-block`) for RTL/LTR compatibility.
-- **Avoid fixed heights on content containers.** Content length varies — let it flow naturally.
-- **Use `aspect-ratio` for media.** Replace the `padding-top` hack: `aspect-ratio: 16 / 9`.
-
-## Common Pitfalls
-
-- **Breakpoint-driven thinking.** Designing for "mobile, tablet, desktop" as three fixed layouts instead of a fluid continuum. Breakpoints should adjust layout, not define it.
-- **Pixel-based everything.** Using `px` for font sizes disables the user's browser font-size preference, which is an accessibility issue.
-- **Hiding content on mobile.** If content isn't important enough for mobile, question whether it's important at all. Hiding is not a layout strategy.
-- **Viewport units for typography without clamp.** `font-size: 5vw` alone becomes unreadably large on wide screens and tiny on narrow ones. Always clamp.
-- **z-index wars.** Stacking context issues often come from not understanding containing blocks. Avoid arbitrary high values; establish a z-index scale.
-- **Overflow hiding.** `overflow: hidden` masks layout bugs. Find and fix the actual overflow source.
-
-## Reference
-
-- [Every Layout — Reusable CSS Layout Primitives](https://every-layout.dev/)
-- [CSS Grid — MDN Guide](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_grid_layout)
-- [Container Queries — MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_containment/Container_queries)
-- [Utopia — Fluid Type and Space Calculator](https://utopia.fyi/)
+- Set `max-width: 70ch` on text containers — lines wider than ~75 characters hurt readability.
+- Use container queries for reusable components so they respond to parent width, not viewport width.
+- Test at arbitrary widths by dragging the browser edge continuously, not just at device presets — bugs live between breakpoints.
+- Use logical properties (`margin-inline`, `padding-block`) for automatic RTL/LTR compatibility.
+- Never set fixed heights on content containers; let content flow naturally.
+- Use `aspect-ratio` for media — replace the `padding-top` percentage hack.
+- Use `aspect-ratio` on image containers to reserve space before images load, preventing layout shift.
+- Apply `@media (prefers-reduced-motion: reduce)` to disable or simplify animations.

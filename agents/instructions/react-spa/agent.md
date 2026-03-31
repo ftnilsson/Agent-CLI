@@ -331,8 +331,6 @@ describe("UserCard", () => {
 });
 ```
 
-- **Test behaviour, not implementation.** Query by role, text, or label — never by class name or test ID unless other queries aren't applicable.
-- **Use `userEvent` over `fireEvent`** for realistic user interactions.
 - **Mock API calls with MSW**, not by mocking fetch or query hooks directly:
   ```typescript
   // test/mocks/handlers.ts
@@ -353,7 +351,6 @@ describe("UserCard", () => {
 - **Never use `index.tsx` as a component file name.** Name it after the component.
 - **Never use inline styles.** Use Tailwind classes.
 - **Never create "god components"** that handle data fetching, business logic, and rendering in one file. Split by responsibility.
-- **Never `// @ts-ignore` or `as any`** to silence type errors. Fix the types.
 - **Never prop-drill more than 2 levels.** Use context, Zustand, or composition.
 - **Never put API URLs or secrets in client code.** Use environment variables via `import.meta.env`.
 - **Never use `useEffect` to sync state with props.** Derive the value instead, or restructure the component.

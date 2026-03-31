@@ -149,30 +149,6 @@ If your `.agent.json` has a `defaultTarget` field, that will be used when no `--
 }
 ```
 
-### Version 2.0 Migration Guide
-
-Version 2.0 removed the deprecated flags. If you were using the old syntax, here's how to migrate:
-
-| Old Syntax | New Syntax | Notes |
-|---|---|---|
-| `agent install --format copilot` | `agent install --target copilot` | — |
-| `agent install --format claude` | `agent install --target claude` | — |
-| `agent install --format cursor` | `agent install --target cursor` | — |
-| `agent install --all` | `agent install --target mixed` | — |
-| `agent install --no-gitignore` | `agent install --skip-gitignore` | — |
-
-```bash
-# OLD (no longer works):
-agent install --format copilot
-agent install --all
-agent install --no-gitignore
-
-# NEW (v2.0):
-agent install --target copilot
-agent install --target mixed
-agent install --skip-gitignore
-```
-
 #### Installation Options
 
 | Option | Description |
@@ -192,15 +168,7 @@ agent list --remote   # show ALL available entries in the registry
 ```
 
 Remote listing marks included entries with `●` and available ones with `○`.
-`agent list --remote` reads the latest registry state (HEAD), not only your pinned manifest ref.
-
-`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
-
-`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
-
-`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
-
-`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
+`agent list --remote` reads the latest registry state (HEAD), not only your pinned manifest ref. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
 ### `agent update`
 
@@ -246,12 +214,19 @@ Apply a named preset — a curated set of skills and agent instructions for a sp
 
 ```bash
 agent preset --list            # show available presets
-agent preset nextjs            # apply the Next.js preset
-agent preset nestjs            # apply the NestJS preset
-agent preset react             # apply the React SPA preset
-agent preset unity-full        # apply the Unity game dev preset
-agent preset aws-cloud         # apply the AWS cloud preset
-agent preset serverless-aws    # apply the serverless + AWS preset
+agent preset web               # full-stack web (development + frontend + backend)
+agent preset frontend          # frontend only
+agent preset backend           # backend only
+agent preset typescript        # TypeScript/Node.js
+agent preset nextjs            # Next.js full-stack
+agent preset nestjs            # NestJS API
+agent preset react             # React SPA
+agent preset unity             # Unity 6 game dev (includes agent instructions)
+agent preset godot             # Godot 4 game dev (includes agent instructions)
+agent preset aws               # AWS cloud
+agent preset azure             # Azure cloud
+agent preset serverless-aws    # Serverless on AWS
+agent preset serverless-azure  # Serverless on Azure
 ```
 
 Presets are resolved against the latest remote registry. If your manifest ref is behind, it is updated automatically.
