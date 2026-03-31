@@ -73,7 +73,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.preset }}
-          path: $(dirname ${{ matrix.path }})/
+          path: ${{ matrix.path }}
 ```
 
 ## Web Export Requirements
