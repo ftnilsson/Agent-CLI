@@ -72,7 +72,7 @@ Use a migration tool (Flyway, Liquibase, Prisma Migrate, EF Migrations, Alembic)
 | Remove column | Stop reading it first → deploy → drop the column |
 | Rename column | Add new → backfill → update code → drop old |
 | Change type | Add new → backfill with cast → update code → drop old |
-| Add `NOT NULL` constraint | Add as `NOT VALID` → validate separately |
+| Add `NOT NULL` constraint | Add `CHECK (col IS NOT NULL) NOT VALID`, validate, then optionally `ALTER COLUMN ... SET NOT NULL` |
 
 Never rename or drop a column in the same deploy that changes the application code. The old code is still running during rollout. Every migration must have a tested rollback.
 
