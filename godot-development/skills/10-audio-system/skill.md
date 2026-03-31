@@ -1,69 +1,40 @@
 # Audio System
 
-## Description
+## Audio Bus Layout
 
-This skill covers Godot 4's audio system — AudioStreamPlayer nodes, AudioBuses, spatial audio, music management, and sound effect playback patterns. Good audio design makes games feel alive and responsive.
-
-## When To Use
-
-- Playing music and sound effects
-- Setting up an audio bus layout (Master, Music, SFX, UI)
-- Implementing spatial / positional audio for 2D or 3D
-- Building an AudioManager for centralized audio control
-- Managing volume settings and audio transitions
-
-## Prerequisites
-
-- Godot 4.3+ project
-- Audio files imported (.ogg for music, .wav for SFX)
-- Understanding of the scene tree and autoloads
-
-## Instructions
-
-### 1. Audio Bus Layout
-
-Configure in **Bottom Panel → Audio**:
+Configure in the Audio panel (bottom of editor):
 
 ```
-Master
+Master (Limiter effect — prevent clipping)
 ├── Music
 ├── SFX
 ├── UI
 └── Ambient
 ```
 
-Each bus can have effects (Reverb, Compressor, Limiter, EQ). Set the **Master** bus limiter to prevent clipping.
+- Create separate buses for Music, SFX, UI, and Ambient — never route everything through Master
+- Add a Limiter effect on the Master bus to prevent clipping
+- Use bus names as `StringName` constants: `&"Music"`, `&"SFX"`, `&"UI"`
 
-### 2. AudioStreamPlayer Nodes
+## AudioStreamPlayer Node Selection
 
 | Node | Use Case |
 |------|----------|
-| `AudioStreamPlayer` | Non-positional (music, UI sounds) |
-| `AudioStreamPlayer2D` | 2D positional audio |
-| `AudioStreamPlayer3D` | 3D positional audio |
+| `AudioStreamPlayer` | Non-positional — music, UI sounds, global SFX |
+| `AudioStreamPlayer2D` | 2D positional audio — attenuates by distance to camera |
+| `AudioStreamPlayer3D` | 3D positional audio — full spatial panning and attenuation |
+
+- Set `max_distance` and `attenuation` on `AudioStreamPlayer2D/3D` in the Inspector
+- Add pitch variation to repeated sounds: `player.pitch_scale = randf_range(0.9, 1.1)`
+- Use `AudioStreamRandomizer` for automatic random variation of repeated sound effects
+
+## AudioManager Autoload
 
 ```gdscript
-# Play a sound effect
-@onready var _jump_sfx: AudioStreamPlayer = $JumpSFX
-
-func jump() -> void:
-    _jump_sfx.play()
-
-# Play with variation
-func play_footstep() -> void:
-    _footstep.pitch_scale = randf_range(0.9, 1.1)
-    _footstep.play()
-```
-
-### 3. AudioManager Autoload
-
-```gdscript
-# scripts/autoload/audio_manager.gd
 extends Node
 
 @onready var _music_player: AudioStreamPlayer = $MusicPlayer
-@onready var _sfx_pool: Array[AudioStreamPlayer] = []
-
+var _sfx_pool: Array[AudioStreamPlayer] = []
 const SFX_POOL_SIZE := 8
 
 func _ready() -> void:
@@ -74,28 +45,6 @@ func _ready() -> void:
         add_child(player)
         _sfx_pool.append(player)
 
-func play_music(stream: AudioStream, fade_duration: float = 1.0) -> void:
-    if _music_player.stream == stream and _music_player.playing:
-        return
-    
-    var tween := create_tween()
-    if _music_player.playing:
-        tween.tween_property(_music_player, "volume_db", -40.0, fade_duration * 0.5)
-        await tween.finished
-    
-    _music_player.stream = stream
-    _music_player.volume_db = -40.0
-    _music_player.play()
-    
-    var fade_in := create_tween()
-    fade_in.tween_property(_music_player, "volume_db", 0.0, fade_duration * 0.5)
-
-func stop_music(fade_duration: float = 1.0) -> void:
-    var tween := create_tween()
-    tween.tween_property(_music_player, "volume_db", -40.0, fade_duration)
-    await tween.finished
-    _music_player.stop()
-
 func play_sfx(stream: AudioStream, volume_db: float = 0.0) -> void:
     for player in _sfx_pool:
         if not player.playing:
@@ -103,68 +52,44 @@ func play_sfx(stream: AudioStream, volume_db: float = 0.0) -> void:
             player.volume_db = volume_db
             player.play()
             return
-    # All players busy — skip or grow pool
-    push_warning("SFX pool exhausted")
 
 func set_bus_volume(bus_name: StringName, volume: float) -> void:
-    var bus_idx := AudioServer.get_bus_index(bus_name)
-    AudioServer.set_bus_volume_db(bus_idx, linear_to_db(volume))
-
-func set_bus_mute(bus_name: StringName, mute: bool) -> void:
-    var bus_idx := AudioServer.get_bus_index(bus_name)
-    AudioServer.set_bus_mute(bus_idx, mute)
+    var idx := AudioServer.get_bus_index(bus_name)
+    AudioServer.set_bus_volume_db(idx, linear_to_db(volume))
 ```
 
-### 4. 2D Positional Audio
+- Pool `AudioStreamPlayer` nodes in an autoload — never instantiate and free them at runtime
+- Fade music transitions using `Tween` on `volume_db` — never cut abruptly between tracks
+- Use `AudioServer.get_bus_index(bus_name)` to look up bus indices for volume control
 
-```gdscript
-# Attach AudioStreamPlayer2D to the source node
-@onready var _hit_sound: AudioStreamPlayer2D = $HitSound
+## Volume Settings
 
-func take_damage() -> void:
-    _hit_sound.play()  # Pans and attenuates based on distance to listener
-```
+- Store volume as a linear float (0.0–1.0) in save data; convert to dB with `linear_to_db()`
+- Read current bus volume with `db_to_linear(AudioServer.get_bus_volume_db(idx))` for slider initialization
+- Mute buses with `AudioServer.set_bus_mute(idx, true)` — do not set volume to -80 dB
 
-Set `max_distance` and `attenuation` in the Inspector for appropriate falloff.
+## File Format Rules
 
-### 5. Volume Settings
+- Use `.ogg` for music — smaller files, suitable for streaming
+- Use `.wav` for short SFX — no decode latency, instant playback
+- Never use `.mp3` for music in Godot — `.ogg` is preferred for size and licensing
 
-```gdscript
-func _ready() -> void:
-    _music_slider.value = db_to_linear(
-        AudioServer.get_bus_volume_db(AudioServer.get_bus_index(&"Music"))
-    )
-    _sfx_slider.value = db_to_linear(
-        AudioServer.get_bus_volume_db(AudioServer.get_bus_index(&"SFX"))
-    )
+## Anti-patterns
 
-func _on_music_slider_changed(value: float) -> void:
-    AudioManager.set_bus_volume(&"Music", value)
-
-func _on_sfx_slider_changed(value: float) -> void:
-    AudioManager.set_bus_volume(&"SFX", value)
-```
+| Pattern | Fix |
+|---------|-----|
+| `AudioStreamPlayer` attached to a gameplay node that gets freed | Route all audio through persistent AudioManager autoload |
+| All sounds on Master bus | Create Music, SFX, UI buses for independent volume control |
+| Music stream swapped without fading | Fade out old stream, swap, fade in new stream |
+| `AudioStreamPlayer` instantiated per sound effect at runtime | Pool players in AudioManager `_ready()` |
+| No `max_distance` on positional audio | Set `max_distance` in Inspector — default plays at full volume globally |
+| `.wav` used for music tracks | Use `.ogg` for music — much smaller file size |
 
 ## Best Practices
 
-- Use audio buses to group and control volume by category (Music, SFX, UI).
-- Pool `AudioStreamPlayer` nodes — don't create/destroy them at runtime.
-- Use `.ogg` for music (smaller files), `.wav` for SFX (no decode latency).
-- Add pitch variation to repeated sounds (footsteps, hits) to avoid repetition.
-- Fade music in/out — never cut abruptly.
-- Use `AudioStreamRandomizer` for automatic variation of the same sound.
-- Set a Limiter effect on the Master bus to prevent clipping.
-
-## Common Pitfalls
-
-- **Playing audio on a freed node.** The sound cuts off when the node is freed. Use a persistent AudioManager.
-- **All sounds on the Master bus.** Without separate buses, you can't control music vs SFX volume independently.
-- **Using `.mp3` or `.wav` for music.** `.ogg` is much smaller and streams well.
-- **Not setting max_distance on 2D/3D players.** Audio plays globally at full volume.
-- **Creating AudioStreamPlayer per sound.** Pool them in an autoload instead.
-
-## Reference
-
-- [Audio Buses](https://docs.godotengine.org/en/stable/tutorials/audio/audio_buses.html)
-- [AudioStreamPlayer](https://docs.godotengine.org/en/stable/classes/class_audiostreamplayer.html)
-- [Audio Streams](https://docs.godotengine.org/en/stable/tutorials/audio/audio_streams.html)
+- Create all buses (Music, SFX, UI, Ambient) before importing any audio assets
+- Pool `AudioStreamPlayer` nodes at startup — use a fixed-size pool of 8–16 SFX players
+- Add pitch variation (`randf_range(0.9, 1.1)`) to all repeated sound effects
+- Use `AudioStreamRandomizer` for footsteps, impacts, and any sound played frequently
+- Persist volume settings to a save file and restore on game start
+- Test audio at multiple system volume levels to ensure the mix holds

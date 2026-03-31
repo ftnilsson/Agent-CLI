@@ -1,94 +1,25 @@
 # Project Setup & Architecture
 
-## Description
+## Folder Structure
 
-This skill covers creating and structuring Godot 4 projects for long-term maintainability, scalability, and team collaboration. A well-organized project from the start prevents costly refactors, reduces merge conflicts, and makes onboarding new team members straightforward.
+- Place scenes under `scenes/` with feature sub-folders: `levels/`, `characters/`, `ui/`
+- Place scripts under `scripts/` with sub-folders: `autoload/`, `player/`, `systems/`
+- Place `.tres` resource files under `resources/` organized by type
+- Place raw assets under `assets/art/`, `assets/audio/`, `assets/fonts/`, `assets/shaders/`
+- Place third-party plugins under `addons/`
+- Place test files under `tests/`
 
-## When To Use
-
-- Starting a new Godot 4 project from scratch
-- Restructuring an existing project that has grown disorganized
-- Setting up autoloads and plugin architecture
-- Configuring project settings and export presets
-- Establishing coding conventions and folder standards for a team
-
-## Prerequisites
-
-- Godot 4.3 or later installed
-- Basic familiarity with the Godot Editor interface
-- A code editor (built-in script editor, VS Code with godot-tools, or Rider)
-
-## Instructions
-
-### 1. Create the Project
-
-Create a new project via the Godot Project Manager. Choose the appropriate renderer:
+## Renderer Selection
 
 | Renderer | Use Case |
 |----------|----------|
-| **Forward+** | Most 3D games — best visual quality with modern features |
-| **Mobile** | Mobile-optimized 3D with reduced feature set |
-| **Compatibility** | Widest platform support (WebGL, older hardware), OpenGL-based |
+| Forward+ | Default for 3D — full feature set, modern hardware |
+| Mobile | Mobile-optimized 3D, reduced feature set |
+| Compatibility | WebGL, older hardware, widest platform support |
 
-> Use Forward+ unless targeting mobile or web. You can switch renderers later in Project Settings.
+Use Forward+ unless targeting mobile or web platforms specifically.
 
-### 2. Establish the Folder Structure
-
-Organize the project using a feature-based layout:
-
-```
-project/
-├── project.godot
-├── scenes/
-│   ├── main.tscn              # Entry scene
-│   ├── levels/
-│   ├── characters/
-│   ├── objects/
-│   └── ui/
-├── scripts/
-│   ├── autoload/              # Singletons
-│   ├── player/
-│   ├── enemies/
-│   ├── systems/
-│   ├── ui/
-│   └── utilities/
-├── resources/                 # .tres custom resource files
-│   ├── weapons/
-│   ├── enemies/
-│   └── config/
-├── assets/
-│   ├── art/
-│   │   ├── sprites/
-│   │   ├── models/
-│   │   ├── textures/
-│   │   └── materials/
-│   ├── audio/
-│   │   ├── music/
-│   │   └── sfx/
-│   ├── fonts/
-│   ├── shaders/
-│   └── themes/
-├── addons/                    # Third-party plugins
-└── tests/                     # GdUnit4 / Gut test scripts
-```
-
-**Key principles:**
-- Separate scenes, scripts, and assets into top-level folders.
-- Group scripts by feature, not by type.
-- Use `resources/` for custom `.tres` files that are data-driven.
-- The `addons/` folder is managed by Godot's plugin system.
-
-### 3. Configure Autoloads
-
-Register global singletons in **Project → Project Settings → Globals → Autoload**:
-
-| Autoload | Purpose |
-|----------|---------|
-| `EventBus` | Global signal bus for decoupled communication |
-| `GameManager` | Game state, pausing, game over |
-| `SceneManager` | Scene transitions with loading screens |
-| `AudioManager` | Music and SFX playback |
-| `SaveManager` | Save/load game state |
+## Autoloads
 
 ```gdscript
 # scripts/autoload/event_bus.gd
@@ -99,97 +30,44 @@ signal score_changed(new_score: int)
 signal level_completed(level_id: int)
 ```
 
-**Rules for autoloads:**
-- Keep them small and focused — one responsibility each.
-- Autoloads coordinate; scenes own game logic.
-- Access via their registered name: `EventBus.player_died.emit()`.
+- Register global singletons in Project Settings → Globals → Autoload
+- Create separate autoloads per responsibility: `EventBus`, `GameManager`, `SceneManager`, `AudioManager`, `SaveManager`
+- Access autoloads by registered name: `EventBus.player_died.emit()`
+- Never let autoloads grow into god objects — one responsibility each
+- Autoloads coordinate systems; scenes own game logic
 
-### 4. Configure Project Settings
+## Project Settings
 
-#### Display
-- Set **Viewport Width/Height** to your target resolution.
-- Set **Stretch Mode** to `canvas_items` and **Stretch Aspect** to `expand` for responsive scaling.
+- Set Viewport Width/Height to target resolution under Display → Window
+- Set Stretch Mode to `canvas_items` and Stretch Aspect to `expand` for responsive scaling
+- Define all Input Map actions before writing gameplay code: `move_left`, `move_right`, `jump`, `attack`, `interact`, `pause`
+- Name all Collision Layers in Project Settings → Layer Names → 2D/3D Physics before placing nodes
+- Configure Physics Ticks Per Second (default 60) under Physics
 
-#### Input Map
-- Define all input actions early: `move_left`, `move_right`, `jump`, `attack`, `interact`, `pause`.
-- Assign keyboard, gamepad, and touch bindings.
+## Version Control
 
-#### Physics
-- Configure **Physics Ticks Per Second** (default 60).
-- Set up **Collision Layers** with descriptive names (via Project Settings → Layer Names).
+- Commit `export_presets.cfg` — it contains platform build configuration
+- Never commit `.godot/` — add it to `.gitignore`
+- Use `*.tscn merge=union` and `*.tres merge=union` in `.gitattributes` to reduce merge conflicts
+- Track binary assets (`.png`, `.ogg`, `.glb`) with Git LFS
 
-#### Rendering
-- Choose the renderer backend.
-- Configure anti-aliasing and shadow quality.
+## Anti-patterns
 
-### 5. Set Up Version Control
-
-#### .gitignore
-
-```gitignore
-# Godot
-.godot/
-*.translation
-
-# Imports (regenerated)  
-.import/
-
-# Mono / .NET
-.mono/
-data_*/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-```
-
-#### .gitattributes
-
-```gitattributes
-# Godot scene and resource files
-*.tscn merge=union
-*.tres merge=union
-
-# Binary assets
-*.png filter=lfs diff=lfs merge=lfs -text
-*.jpg filter=lfs diff=lfs merge=lfs -text
-*.ogg filter=lfs diff=lfs merge=lfs -text
-*.wav filter=lfs diff=lfs merge=lfs -text
-*.mp3 filter=lfs diff=lfs merge=lfs -text
-*.glb filter=lfs diff=lfs merge=lfs -text
-*.gltf filter=lfs diff=lfs merge=lfs -text
-```
-
-### 6. Configure GDScript Formatting
-
-Set up consistent formatting in **Editor → Editor Settings → Text Editor**:
-- **Indent Size**: 4 (tabs, matching Godot convention)
-- Use the built-in GDScript formatter or `gdtoolkit` for CI.
+| Pattern | Fix |
+|---------|-----|
+| Flat folder structure with all files at root | Organize into feature sub-folders immediately |
+| Giant autoload handling unrelated systems | Split into focused single-responsibility autoloads |
+| Hardcoded `res://` string paths scattered in scripts | Use `@export var scene: PackedScene` and `preload()` |
+| Collision layers unnamed and unnumbered arbitrarily | Name all layers in Project Settings before building levels |
+| `.godot/` committed to version control | Add to `.gitignore` — never commit generated cache |
 
 ## Best Practices
 
-- Start every project with autoloads and folder structure before writing gameplay code.
-- Use `class_name` for scripts that will be referenced by type.
-- Keep scenes small and composable — avoid monolithic scenes with hundreds of nodes.
-- Use feature branches and merge to `main` via pull requests.
-- Set up export presets early so you can test builds throughout development.
-- Use Godot's built-in plugin system (`addons/`) for reusable tools and editor extensions.
-
-## Common Pitfalls
-
-- **Giant autoloads.** Don't turn autoloads into god objects. Split responsibilities.
-- **Flat folder structure.** Without sub-folders, projects become unmanageable at 50+ files.
-- **Forgetting .gitignore.** The `.godot/` folder must never be committed — it contains generated cache.
-- **Hardcoding paths.** Use `@export` and `preload()` / `load()` instead of string paths where possible.
-- **Skipping collision layer setup.** Configure layers early to avoid expensive unnecessary collision checks.
-
-## Reference
-
-- [Godot Project Organization](https://docs.godotengine.org/en/stable/tutorials/best_practices/project_organization.html)
-- [GDScript Style Guide](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_styleguide.html)
-- [Autoloads (Singletons)](https://docs.godotengine.org/en/stable/tutorials/scripting/singletons_autoload.html)
+- Establish folder structure and autoloads before writing any gameplay code
+- Use `class_name` on scripts that will be referenced by type elsewhere
+- Keep scenes small and composable — avoid monolithic scenes with hundreds of nodes
+- Set up export presets for all target platforms early to catch export issues during development
+- Use `@export` and `preload()` instead of hardcoded string paths
+- Configure collision layers with descriptive names before placing any physics bodies
+- Use feature branches and merge via pull requests to reduce integration conflicts
+- Set indent to tabs matching Godot convention; use `gdtoolkit` for CI formatting

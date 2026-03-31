@@ -1,58 +1,20 @@
 # Shaders & Visual Effects
 
-## Description
+## Shader Types
 
-This skill covers writing shaders in Godot's shading language, using VisualShader for node-based workflows, and applying post-processing effects. Godot shaders are written in a GLSL-like language and attached to materials.
+- Use `shader_type canvas_item` for 2D sprites, UI, and screen-space effects
+- Use `shader_type spatial` for 3D surface materials
+- Use `shader_type particles` for custom GPU particle behavior
+- Add `render_mode unshaded` to spatial shaders that implement custom lighting — default is PBR
 
-## When To Use
-
-- Writing custom visual effects (dissolve, outline, distortion)
-- Creating 2D sprite effects (flash, glow, palette swap)
-- Building post-processing pipelines (bloom, vignette, colour grading)
-- Using VisualShader for rapid prototyping
-- Optimising rendering with custom shader logic
-
-## Prerequisites
-
-- Godot 4.3+ rendering pipeline basics (Forward+, Mobile, Compatibility)
-- Understanding of materials, textures, and the rendering flow
-- Basic linear algebra (vectors, matrices)
-
-## Instructions
-
-### 1. Shader Basics
-
-Create a new `ShaderMaterial` on a node, and assign a `Shader` resource. Godot shaders have three processor functions:
-
-```glsl
-shader_type canvas_item; // or spatial, particles, fog, sky
-
-// Vertex shader
-void vertex() {
-    // Modify VERTEX, UV, COLOR
-}
-
-// Fragment shader
-void fragment() {
-    // Modify COLOR, ALPHA
-    COLOR = texture(TEXTURE, UV);
-}
-
-// Light shader (per-light calculations)
-void light() {
-    // Modify LIGHT
-}
-```
-
-### 2. Common 2D Effects
-
-#### Hit Flash
+## Shader Uniforms
 
 ```glsl
 shader_type canvas_item;
 
 uniform vec4 flash_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform float flash_amount : hint_range(0.0, 1.0) = 0.0;
+uniform sampler2D noise_texture : hint_default_white;
 
 void fragment() {
     vec4 tex = texture(TEXTURE, UV);
@@ -61,145 +23,54 @@ void fragment() {
 }
 ```
 
-#### Outline
+- Always add `hint_range`, `source_color`, or `hint_default_*` hints to uniforms — they control Inspector display
+- Set uniform values from GDScript with `material.set_shader_parameter("param_name", value)`
+- Use `instance uniform` when many objects share a shader but need individual values
+- Retrieve `ShaderMaterial` with `node.material as ShaderMaterial` before calling `set_shader_parameter()`
 
-```glsl
-shader_type canvas_item;
+## Common 2D Effects
 
-uniform vec4 outline_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
-uniform float outline_width : hint_range(0.0, 10.0) = 1.0;
+- Hit flash: blend `TEXTURE` color with a solid `flash_color` uniform using `mix()`
+- Outline: sample alpha at `UV ± TEXTURE_PIXEL_SIZE * outline_width` and draw `outline_color` where original alpha is 0
+- Dissolve: use a noise texture; `discard` fragments where `noise < dissolve_amount`; draw edge color in the `edge_width` band
+- Screen distortion: sample `hint_screen_texture` with offset UVs for heat/water ripple effects
 
-void fragment() {
-    vec2 size = TEXTURE_PIXEL_SIZE * outline_width;
-    float alpha = texture(TEXTURE, UV).a;
-    
-    alpha += texture(TEXTURE, UV + vec2(size.x, 0.0)).a;
-    alpha += texture(TEXTURE, UV + vec2(-size.x, 0.0)).a;
-    alpha += texture(TEXTURE, UV + vec2(0.0, size.y)).a;
-    alpha += texture(TEXTURE, UV + vec2(0.0, -size.y)).a;
-    
-    vec4 tex = texture(TEXTURE, UV);
-    if (tex.a < 0.5 && alpha > 0.0) {
-        COLOR = outline_color;
-    } else {
-        COLOR = tex;
-    }
-}
-```
+## 3D Spatial Shaders
 
-#### Dissolve
+- Access `NORMAL`, `VIEW`, `ALBEDO`, `EMISSION`, `ROUGHNESS`, `METALLIC` in the `fragment()` function
+- Use `EMISSION` for rim lighting, glow, and emissive effects — set it additively on top of `ALBEDO`
+- Use `dot(NORMAL, VIEW)` for rim/fresnel effects
+- Avoid branching in shaders — replace `if` with `mix()`, `step()`, and `smoothstep()`
 
-```glsl
-shader_type canvas_item;
+## Post-Processing
 
-uniform sampler2D noise_texture;
-uniform float dissolve_amount : hint_range(0.0, 1.0) = 0.0;
-uniform float edge_width : hint_range(0.0, 0.1) = 0.02;
-uniform vec4 edge_color : source_color = vec4(1.0, 0.5, 0.0, 1.0);
+- Implement full-screen post-processing with a `ColorRect` covering the viewport assigned a `ShaderMaterial`
+- Sample the screen with `uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap`
+- Read screen UV with `SCREEN_UV` inside `canvas_item` fragment shaders
+- Prefer built-in `Environment` resource effects (SSAO, SSR, bloom, tonemap) over custom post-processing when sufficient
 
-void fragment() {
-    vec4 tex = texture(TEXTURE, UV);
-    float noise = texture(noise_texture, UV).r;
-    
-    float edge = smoothstep(dissolve_amount, dissolve_amount + edge_width, noise);
-    
-    if (noise < dissolve_amount) {
-        discard;
-    }
-    
-    COLOR.rgb = mix(edge_color.rgb, tex.rgb, edge);
-    COLOR.a = tex.a;
-}
-```
+## VisualShader
 
-### 3. 3D Spatial Shaders
+- Use VisualShader for rapid prototyping and non-programmer-friendly workflows
+- VisualShader compiles to the same underlying code as text shaders — no runtime performance difference
+- Convert to text shader for fine-grained control after prototyping
 
-```glsl
-shader_type spatial;
-render_mode unshaded, cull_disabled;
+## Anti-patterns
 
-uniform sampler2D albedo_texture : source_color;
-uniform float rim_power : hint_range(0.0, 8.0) = 3.0;
-uniform vec4 rim_color : source_color = vec4(0.0, 0.8, 1.0, 1.0);
-
-void fragment() {
-    vec4 tex = texture(albedo_texture, UV);
-    ALBEDO = tex.rgb;
-    
-    float rim = 1.0 - dot(NORMAL, VIEW);
-    rim = pow(rim, rim_power);
-    EMISSION = rim_color.rgb * rim;
-}
-```
-
-### 4. Post-Processing
-
-Post-processing in Godot 4 uses a full-screen quad or the `Environment` resource.
-
-#### Custom Post-Process with ColorRect
-
-1. Add a `ColorRect` that covers the viewport.
-2. Assign a `ShaderMaterial` with a screen-reading shader.
-
-```glsl
-shader_type canvas_item;
-
-uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap;
-uniform float vignette_intensity : hint_range(0.0, 1.0) = 0.4;
-uniform float vignette_opacity : hint_range(0.0, 1.0) = 0.5;
-
-void fragment() {
-    vec4 screen_color = texture(screen_texture, SCREEN_UV);
-    
-    float vignette = distance(SCREEN_UV, vec2(0.5));
-    vignette = smoothstep(0.3, 0.7, vignette * vignette_intensity);
-    
-    COLOR.rgb = mix(screen_color.rgb, vec3(0.0), vignette * vignette_opacity);
-    COLOR.a = 1.0;
-}
-```
-
-### 5. VisualShader
-
-For non-coders or rapid prototyping, use the VisualShader editor:
-
-1. Create a `VisualShader` resource on a `ShaderMaterial`.
-2. Open it — the node graph editor appears.
-3. Add nodes (Input, Texture, Math, Mix) and connect outputs to inputs.
-4. The `Output` node exposes Albedo, Emission, Alpha, etc.
-
-VisualShader compiles to the same GLSL-like code at runtime — no performance difference.
-
-### 6. Shader Uniforms from GDScript
-
-```gdscript
-@onready var _sprite: Sprite2D = $Sprite2D
-
-func flash_white(duration: float = 0.1) -> void:
-    var mat := _sprite.material as ShaderMaterial
-    mat.set_shader_parameter("flash_amount", 1.0)
-    await get_tree().create_timer(duration).timeout
-    mat.set_shader_parameter("flash_amount", 0.0)
-```
+| Pattern | Fix |
+|---------|-----|
+| Uniforms declared without type hints | Add `hint_range`, `source_color`, or `hint_default_*` |
+| `if/else` branching in hot fragment paths | Replace with `mix()`, `step()`, `smoothstep()` |
+| `hint_screen_texture` in a non-full-screen shader | Only valid on a full-screen `ColorRect` or `SubViewport` quad |
+| Spatial shader without `render_mode unshaded` for custom lighting | Add `render_mode unshaded` explicitly |
+| `set_shader_parameter()` called on wrong material type | Cast with `node.material as ShaderMaterial` first |
+| One large shader handling many effects | Split into small focused shaders — one effect per shader |
 
 ## Best Practices
 
-- Use `uniform` with type hints (`hint_range`, `source_color`) so values are editable in the Inspector.
-- Keep shaders small and focused — one effect per shader.
-- Use `instance uniform` when many objects share a shader but need different values.
-- Prefer built-in `Environment` effects (tonemap, SSAO, SSR) over custom post-processing when available.
-- Profile shader cost with the Godot profiler — fragment shaders run per pixel.
-
-## Common Pitfalls
-
-- **Using `hint_screen_texture` in non-screen shaders.** This only works in canvas_item shaders on a full-screen node.
-- **Not setting render priority.** Transparent objects and post-processing need correct render order.
-- **Forgetting `render_mode unshaded`.** Spatial shaders default to PBR lighting; use `unshaded` for custom lighting.
-- **Branching in shaders.** GPUs dislike branches — use `mix()`, `step()`, `smoothstep()` instead of `if`.
-
-## Reference
-
-- [Shading Language](https://docs.godotengine.org/en/stable/tutorials/shaders/shader_reference/shading_language.html)
-- [CanvasItem Shaders](https://docs.godotengine.org/en/stable/tutorials/shaders/shader_reference/canvas_item_shader.html)
-- [Spatial Shaders](https://docs.godotengine.org/en/stable/tutorials/shaders/shader_reference/spatial_shader.html)
-- [VisualShaders](https://docs.godotengine.org/en/stable/tutorials/shaders/visual_shaders.html)
+- Declare all tunable values as `uniform` with `hint_range` so designers can tweak in the Inspector
+- Keep shaders small and single-purpose — compose multiple `ShaderMaterial` effects via `CanvasGroup` or layered meshes
+- Profile shader cost with the Godot GPU profiler — fragment shaders execute per pixel
+- Use `instance uniform` for per-object variation on shared materials (character tint, dissolve progress)
+- Animate shader uniforms from GDScript using `Tween` for smooth transitions (flash, dissolve, reveal)
+- Set `render_priority` correctly on transparent materials to ensure correct draw order

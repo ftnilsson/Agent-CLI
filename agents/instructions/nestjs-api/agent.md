@@ -346,9 +346,7 @@ describe("UsersController (e2e)", () => {
 - **Never inject `PrismaService` directly into controllers or services.** Use a repository layer.
 - **Never return Prisma models directly from APIs.** Always map to response DTOs.
 - **Never use `class-validator` with magic decorators.** Use Zod for explicit, composable validation.
-- **Never store secrets in code or `.env` files committed to git.** Use environment variables or a secret manager.
 - **Never use synchronous operations in request handlers** (e.g., `fs.readFileSync`).
 - **Never create circular module dependencies.** If A needs B and B needs A, introduce a shared module C.
-- **Never use wildcard imports** (`import * as`). They defeat tree-shaking and make dependencies opaque.
 - **Never skip database migrations** by editing the schema and running `prisma db push` in production.
 - **Never use `@Res()` to send raw responses** unless you have a specific reason (SSE, streaming). It breaks interceptors and exception filters.

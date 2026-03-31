@@ -1,38 +1,15 @@
 # Testing & Debugging
 
-## Description
+## GdUnit4 Setup
 
-This skill covers testing GDScript code using GdUnit4 and Gut frameworks, using Godot's built-in debugging tools, and establishing quality assurance practices for Godot 4 projects.
+- Install GdUnit4 via AssetLib — search "GdUnit4" and enable the plugin
+- Enable in Project Settings → Plugins → GdUnit4
+- Place all test files under `tests/` at the project root
+- Name test files `test_<system>.gd` and test methods `test_<what>_<condition>_<expected>`
 
-## When To Use
-
-- Writing unit tests for game systems and utilities
-- Integration testing scenes and node interactions
-- Using the Godot debugger to inspect state at runtime
-- Setting up CI/CD test automation for Godot projects
-- Debugging physics, signals, and performance issues
-
-## Prerequisites
-
-- Godot 4.3+ project with gameplay code to test
-- GDScript Fundamentals skill
-- Understanding of signals and the scene tree
-
-## Instructions
-
-### 1. GdUnit4 Setup
-
-GdUnit4 is the recommended testing framework for Godot 4:
-
-1. Open **AssetLib** in the Godot editor.
-2. Search for **GdUnit4** and install it.
-3. Enable the plugin: **Project → Project Settings → Plugins → GdUnit4**.
-4. Create a `test/` directory at the project root.
-
-### 2. Writing Unit Tests
+## Writing Unit Tests
 
 ```gdscript
-# test/test_health_system.gd
 class_name TestHealthSystem
 extends GdUnitTestSuite
 
@@ -50,171 +27,72 @@ func test_take_damage_reduces_health() -> void:
     _health.take_damage(30)
     assert_int(_health.current_health).is_equal(70)
 
-func test_heal_does_not_exceed_max() -> void:
-    _health.take_damage(50)
-    _health.heal(80)
-    assert_int(_health.current_health).is_equal(100)
-
-func test_is_dead_when_health_zero() -> void:
-    _health.take_damage(100)
-    assert_bool(_health.is_dead()).is_true()
-
 func test_damage_signal_emitted() -> void:
     var monitor := monitor_signals(_health)
     _health.take_damage(10)
     await assert_signal(monitor).is_emitted("health_changed")
 ```
 
-### 3. Scene Testing
+- Free all created nodes in `after_test()` — leaked nodes cause false failures and memory warnings
+- Test game systems (health, inventory, scoring) as pure logic — they should not require a full scene tree
+- Use `monitor_signals()` + `await assert_signal()` for signal assertion — `await` is required
+- Test `RefCounted` and plain `Object` classes without a scene runner for fastest execution
 
-```gdscript
-# test/test_player_scene.gd
-class_name TestPlayerScene
-extends GdUnitTestSuite
+## Scene Testing with GdUnit4
 
-var _player: CharacterBody2D
-var _runner: GdUnitSceneRunner
+- Use `scene_runner("res://path/to/scene.tscn")` to run scene-level tests
+- Call `_runner.simulate_key_pressed(KEY_D)` to inject input
+- Call `await _runner.simulate_frames(n)` to advance physics frames
+- Free the runner in `after_test()` to prevent scene leaks
 
-func before_test() -> void:
-    _runner = scene_runner("res://player/player.tscn")
-    _player = _runner.scene() as CharacterBody2D
+## Godot Debugger
 
-func after_test() -> void:
-    _runner.free()
+- Set breakpoints by clicking the gutter in the script editor — execution pauses and shows local variables
+- Use Step Into, Step Over, Continue in the debugger toolbar
+- Use the Remote tab in the Scene panel to inspect the live scene tree and edit properties at runtime
+- Use `OS.is_debug_build()` to gate debug-only print statements and visual overlays
 
-func test_player_starts_at_origin() -> void:
-    assert_vector2(_player.global_position).is_equal(Vector2.ZERO)
+## Debug Draw
 
-func test_player_moves_right_on_input() -> void:
-    _runner.simulate_key_pressed(KEY_D)
-    await _runner.simulate_frames(10)
-    assert_float(_player.global_position.x).is_greater(0.0)
-```
+- Override `_draw()` on a `Node2D` to visualize detection ranges, velocities, and paths
+- Guard with `if not OS.is_debug_build(): return` to exclude from release builds
+- Use `draw_circle()`, `draw_line()`, `draw_rect()` for quick visualization of invisible gameplay values
 
-### 4. Gut (Alternative Framework)
-
-If using Gut instead of GdUnit4:
-
-```gdscript
-# test/test_inventory.gd
-extends GutTest
-
-var _inventory: Inventory
-
-func before_each() -> void:
-    _inventory = Inventory.new()
-
-func after_each() -> void:
-    _inventory.free()
-
-func test_add_item() -> void:
-    _inventory.add_item("sword", 1)
-    assert_eq(_inventory.get_count("sword"), 1)
-
-func test_remove_item() -> void:
-    _inventory.add_item("potion", 3)
-    _inventory.remove_item("potion", 1)
-    assert_eq(_inventory.get_count("potion"), 2)
-
-func test_cannot_remove_more_than_available() -> void:
-    _inventory.add_item("arrow", 5)
-    _inventory.remove_item("arrow", 10)
-    assert_eq(_inventory.get_count("arrow"), 0)
-```
-
-### 5. Godot Debugger
-
-#### Breakpoints
-
-- Click the gutter (left margin) in the script editor to set breakpoints.
-- When hit, execution pauses and the Inspector shows local variables.
-- Use **Step Into**, **Step Over**, **Continue** in the debugger toolbar.
-
-#### Remote Inspector
-
-- While the game runs, the **Remote** tab in the Scene panel shows the live scene tree.
-- Click any node to inspect its properties in real time.
-- Edit properties live to test changes.
-
-#### Print Debugging
-
-```gdscript
-# Debug prints with context
-func _physics_process(delta: float) -> void:
-    if OS.is_debug_build():
-        print("vel: %s | on_floor: %s | state: %s" % [
-            velocity, is_on_floor(), _current_state
-        ])
-```
-
-#### Debug Draw
-
-```gdscript
-# Draw collision shapes, paths, etc.
-func _draw() -> void:
-    if not OS.is_debug_build():
-        return
-    draw_circle(Vector2.ZERO, _detection_range, Color(1, 0, 0, 0.2))
-    draw_line(Vector2.ZERO, velocity, Color.GREEN, 2.0)
-```
-
-### 6. Common Debug Settings
+## Debug Settings
 
 | Setting | Location | Purpose |
-|---|---|---|
-| Visible Collision Shapes | Debug menu → Visible Collision Shapes | See all collision shapes |
-| Visible Navigation | Debug menu → Visible Navigation | See navigation meshes |
-| Print orphan nodes | Project Settings → Debug | Find memory leaks |
-| FPS counter | Debug menu → Monitors → FPS | Frame rate display |
+|---------|----------|---------|
+| Visible Collision Shapes | Debug menu | See all collision shapes at runtime |
+| Visible Navigation | Debug menu | See navigation mesh and paths |
+| Print Orphan Nodes | Project Settings → Debug | Find memory leaks |
+| FPS Monitor | Debugger → Monitors | Frame rate display |
 
-### 7. CI/CD Testing
+## CI/CD Testing
 
-Run GdUnit4 tests from the command line:
-
+Run GdUnit4 headlessly:
 ```bash
-# Run all tests headlessly
-godot --headless --script addons/gdUnit4/bin/GdUnitCmdTool.gd --add test/
-
-# Run specific test suite
-godot --headless --script addons/gdUnit4/bin/GdUnitCmdTool.gd --add test/test_health_system.gd
+godot --headless --script addons/gdUnit4/bin/GdUnitCmdTool.gd --add tests/
 ```
 
-GitHub Actions example:
+Use `barichello/godot-ci` Docker image in GitHub Actions for automated test runs on every push.
 
-```yaml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    container:
-      image: barichello/godot-ci:4.3
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run tests
-        run: godot --headless --script addons/gdUnit4/bin/GdUnitCmdTool.gd --add test/
-```
+## Anti-patterns
+
+| Pattern | Fix |
+|---------|-----|
+| Nodes created in tests never freed | Call `node.free()` in `after_test()` |
+| Testing visual output instead of data | Assert on values, signals, and state — not pixels |
+| Signal test without `await` | Use `await assert_signal(monitor).is_emitted(...)` |
+| Tests that depend on scene lifecycle order | Make tests self-contained with `before_test()` setup |
+| Debug prints left in release builds | Wrap with `if OS.is_debug_build()` |
+| Running tests with display in CI | Use `--headless` flag in all CI test commands |
 
 ## Best Practices
 
-- Test game systems (health, inventory, scoring) as pure logic — don't require scene trees.
-- Use `before_test()` / `after_test()` to set up and tear down consistently.
-- Name tests descriptively: `test_<what>_<condition>_<expected>`.
-- Free all created nodes in `after_test()` to prevent memory leaks.
-- Run tests in CI on every push to catch regressions early.
-- Use the Remote Inspector to debug scene tree issues at runtime.
-
-## Common Pitfalls
-
-- **Not freeing nodes in tests.** Leaked nodes cause false failures and warnings.
-- **Testing visuals instead of logic.** Unit tests should verify data, not pixels.
-- **Ignoring `await` in signal tests.** Signal assertions need `await` to work correctly.
-- **Testing in `_ready()`.** Tests should be independent — don't rely on scene lifecycle.
-- **Not running headless in CI.** Use `--headless` flag for CI environments without a display.
-
-## Reference
-
-- [GdUnit4](https://mikeschulze.github.io/gdUnit4/)
-- [Gut](https://github.com/bitwes/Gut)
-- [Debugger](https://docs.godotengine.org/en/stable/tutorials/scripting/debug/the_profiler.html)
-- [Command-Line Tutorial](https://docs.godotengine.org/en/stable/tutorials/editor/command_line_tutorial.html)
+- Test pure logic classes (health, inventory, AI state) without scene runners — faster and more reliable
+- Use descriptive test names: `test_heal_cannot_exceed_max_health()`
+- Run tests in CI on every push using `--headless` mode
+- Use the Remote Inspector to debug unexpected scene tree state at runtime
+- Use `push_error()` for unrecoverable errors and `push_warning()` for recoverable issues
+- Add `assert` statements liberally in debug builds to catch invalid states early
+- Profile alongside testing — add performance regression checks for critical systems

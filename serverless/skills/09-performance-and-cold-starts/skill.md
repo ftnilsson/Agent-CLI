@@ -1,245 +1,82 @@
 # Performance & Cold Starts
 
-## Description
+## Cold Start Phases
 
-Optimise serverless function performance by addressing cold starts, memory/CPU tuning, concurrency management, connection reuse, and payload optimisation. This skill covers the performance characteristics unique to serverless — ephemeral execution environments, shared tenancy, and the pay-per-duration model that makes every millisecond matter for both latency and cost.
+- A cold start adds: package download (50–500ms) + runtime start (50–200ms) + module-scope initialisation (50–2000ms) before handler execution begins
+- A warm start skips all phases and executes only handler code
+- Minimise module-scope initialisation time — it directly extends every cold start duration
+- Use lazy initialisation for non-critical dependencies that are not needed on every invocation
 
-## When To Use
+## Package Size Optimisation
 
-- Investigating or reducing cold-start latency on user-facing functions
-- Tuning memory/CPU allocation for optimal cost-performance ratio
-- Managing concurrency limits to prevent throttling or downstream overload
-- Optimising function package size to reduce start-up time
-- Implementing connection reuse and warm-start optimisations
-
-## Prerequisites
-
-- Understanding of serverless function lifecycle (cold start → warm → recycle)
-- Familiarity with function handler patterns (skill 02)
-- Understanding of basic performance measurement (P50, P95, P99 latency)
-
-## Instructions
-
-### 1. Understanding Cold Starts
-
-A cold start occurs when a new function instance is created:
-
-```
-Cold Start:
-┌─────────────────────────────────────────────────────────────────┐
-│ Download    │ Start      │ Init code    │ Handler              │
-│ package     │ runtime    │ (module      │ (your code           │
-│             │            │  scope)      │  execution)          │
-│  ~50-500ms  │  ~50-200ms │  ~50-2000ms  │  ~10-1000ms          │
-└─────────────────────────────────────────────────────────────────┘
-│◄─────── Cold start overhead ──────────▶│◄── Normal execution ─▶│
-
-Warm Start:
-┌──────────────────────────────┐
-│ Handler (your code execution)│
-│  ~10-1000ms                  │
-└──────────────────────────────┘
-```
-
-**Cold start factors:**
-
-| Factor | Impact | Mitigation |
-|--------|--------|------------|
-| **Package size** | Larger package = longer download | Tree-shaking, bundling, exclude dev dependencies |
-| **Runtime** | JVM/C# slower than Node/Python (but faster warm) | Choose runtime by workload needs, not start-up |
-| **Init code** | More module-scope code = longer init | Lazy init for non-critical dependencies |
-| **Memory allocation** | More memory = more CPU = faster init | Tune memory (see section 2) |
-| **VPC/VNet** | Network interface creation adds delay | Use VPC endpoints, avoid VPC unless required |
-| **Dependencies** | Large SDK bundles slow downloads | Import only needed clients, use lightweight SDKs |
-
-### 2. Memory & CPU Tuning
-
-On most serverless platforms, **memory controls CPU allocation**. More memory = more CPU = faster execution (but higher per-ms cost):
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ Memory:  128 MB    256 MB    512 MB    1024 MB    2048 MB    │
-│ CPU:     ~0.08x    ~0.17x    ~0.33x    ~0.67x     ~1.33x    │
-│ Cost/ms: $0.000002 $0.000003 $0.000005 $0.000008  $0.000017 │
-│ Duration:  800ms     400ms     200ms     100ms      75ms     │
-│ Total:   $0.0016   $0.0012   $0.0010   $0.0008    $0.0013   │
-│                                          ▲                    │
-│                                    Sweet spot                │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**Power tuning process:**
-
-1. Run the function with different memory settings (128, 256, 512, 1024, 1536, 2048 MB).
-2. Measure execution duration at each level.
-3. Calculate total cost: memory cost × duration.
-4. Choose the memory setting with the lowest total cost (the sweet spot).
-5. Use power tuning tools (AWS Lambda Power Tuning, manual benchmarking).
-
-**Rules of thumb:**
-
-- **I/O-bound functions** (HTTP calls, database queries) — 256-512 MB is usually sufficient. More memory doesn't help because the function is waiting on external calls.
-- **CPU-bound functions** (data processing, image manipulation, encryption) — 1024-2048 MB gives proportionally more CPU and faster execution. Total cost often decreases.
-- **Always benchmark** — don't guess. The sweet spot varies per function.
-
-### 3. Cold Start Mitigation
-
-| Strategy | Latency reduction | Cost increase | Platform |
-|----------|------------------|--------------|----------|
-| **Reduce package size** | 50-200ms | None | All |
-| **Use bundler (esbuild)** | 100-500ms | None | Node.js |
-| **Avoid VPC/VNet** | 200-1000ms | None | All |
-| **Increase memory** | 50-200ms | Variable | All |
-| **Provisioned concurrency** | Eliminates cold starts | Pay for idle instances | AWS Lambda |
-| **Always Ready instances** | Eliminates cold starts | Pay for idle instances | Azure Functions (Flex) |
-| **Keep-alive pings** | Reduces cold start frequency | Minimal (invocation cost) | All (hacky, not recommended) |
-| **ARM64** | 10-20% faster init | 20% cheaper | AWS Lambda, some Azure |
-
-**Reduce package size (biggest impact):**
+- Bundle each function individually with a tree-shaking bundler (esbuild, webpack) to produce the smallest possible deployment package
+- Target package size below 5 MB; packages above 10 MB add measurable cold start latency
+- Import only the specific SDK clients needed — do not import the entire SDK
+- Mark cloud-provider SDK packages as external in the bundler when they are available pre-installed in the runtime environment
+- Exclude all test dependencies, type definitions, and source maps from production packages
 
 ```bash
-# Before: 50 MB (entire aws-sdk, all node_modules)
-# After: 2 MB (bundled with tree-shaking)
-
-# Use esbuild for Node.js
+# Bundle a single handler with tree-shaking; mark runtime-provided SDK as external
 esbuild src/handlers/create-order.ts \
-  --bundle \
-  --platform=node \
-  --target=node20 \
+  --bundle --platform=node --target=node20 \
   --outfile=dist/create-order.js \
-  --minify \
-  --external:@aws-sdk/*    # AWS SDK v3 is included in Lambda runtime
+  --minify --external:@aws-sdk/*
 ```
 
-```json
-// package.json — separate production dependencies
-{
-  "dependencies": {
-    "zod": "^3.22.0",
-    "pino": "^8.16.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.10.0",
-    "esbuild": "^0.19.0",
-    "jest": "^29.7.0",
-    "@aws-sdk/client-dynamodb": "^3.0.0"  // Dev-only, available in runtime
-  }
-}
-```
+## Memory & CPU Tuning
 
-### 4. Concurrency Management
+- Memory allocation controls CPU allocation on most serverless platforms — higher memory means proportionally more CPU
+- Run power tuning benchmarks across memory settings (128, 256, 512, 1024, 1536, 2048 MB) and measure both duration and total cost
+- For I/O-bound functions (database queries, HTTP calls), 256–512 MB is typically sufficient — waiting on I/O is not accelerated by more CPU
+- For CPU-bound functions (data processing, encryption, image manipulation), higher memory reduces duration enough to lower total cost
+- Use ARM64 architecture where available — typically 10–20% faster cold starts and 20% lower cost
 
-```
-                            Function concurrency limit: 100
-                            ┌────────────────────────────────┐
-Requests ──▶                │ Instance 1 ████                │
-                            │ Instance 2 ██████              │
-                            │ Instance 3 ███                 │
-                            │ ...                            │
-                            │ Instance 99 ████               │
-                            │ Instance 100 ██████            │
-                            └────────────────────────────────┘
-Request 101 ── THROTTLED ──▶  ❌ 429 Too Many Requests
-```
+## Cold Start Mitigation
 
-**Concurrency strategies:**
+- Avoid placing functions in a VPC/VNet unless they access private network resources — VPC network interface creation adds 200–1000ms to cold starts
+- Use provisioned concurrency (AWS) or Always Ready instances (Azure) only for latency-critical synchronous endpoints — they incur continuous idle cost
+- Do not use keep-alive ping workarounds in production — they are unreliable and waste invocation budget
+- Reduce cold start frequency by right-sizing reserved concurrency to match expected traffic patterns
 
-| Strategy | Purpose | When to use |
-|----------|---------|-------------|
-| **Reserved concurrency** | Guarantee capacity for critical functions | Payment processing, auth endpoints |
-| **Throttled concurrency** | Limit concurrent executions to protect downstream | Database-connected functions |
-| **No concurrency limit** | Use account default (1000 on AWS, varies) | Low-risk, independent functions |
+## Connection Reuse
 
-**Protect downstream databases and APIs:**
+- Enable HTTP keep-alive on all SDK and HTTP clients by setting `keepAlive: true` on the underlying agent
+- Initialise all clients in module scope so TCP connections survive across warm invocations
+- Set `max: 1` on database connection pools within function instances; use a proxy for higher concurrency
+- Disable Nagle's algorithm (`setNoDelay: true`) on TCP sockets for latency-sensitive operations
 
-```
-Functions (up to 1000 concurrent) ──▶ Database (max 100 connections)
+## Concurrency Management
 
-Solution 1: Limit function concurrency to 50
-Solution 2: Use a connection proxy (RDS Proxy, PgBouncer)
-Solution 3: Use a queue between the function and database writes
-```
+- Set reserved concurrency on critical functions (payment processing, authentication) to guarantee capacity during traffic spikes
+- Set throttled (maximum) concurrency on database-connected functions to prevent connection exhaustion at the database
+- Account-level concurrency limits are shared across all functions — a runaway function can starve other critical functions
+- Use a queue between high-concurrency triggers and database write operations to absorb traffic spikes
 
-### 5. Connection Reuse
+## Payload Optimisation
 
-```typescript
-// ✅ Connections created in module scope — reused across warm invocations
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { Agent } from 'https';
+- Apply the claim-check pattern for any payload exceeding 256 KB — store in object storage and pass a reference
+- Enable response compression for API responses larger than 1 KB
+- Return only requested fields; avoid returning full entity graphs when a summary is sufficient
+- Use cursor-based pagination to bound response sizes on collection endpoints
 
-// HTTP keep-alive for SDK clients
-const agent = new Agent({ keepAlive: true, maxSockets: 50 });
+## Anti-patterns
 
-const db = new DynamoDBClient({
-  requestHandler: new NodeHttpHandler({ httpsAgent: agent }),
-});
-
-// ✅ Disable Nagle's algorithm for lower latency
-import { Socket } from 'net';
-Socket.prototype.setNoDelay = function () { return this; };
-```
-
-```python
-# ✅ Python — reuse connections
-import urllib3
-
-# Enable connection pooling for boto3
-urllib3.disable_warnings()
-
-# SDK clients in module scope
-import boto3
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table(os.environ['TABLE_NAME'])
-```
-
-### 6. Payload Optimisation
-
-| Technique | Impact | When |
-|-----------|--------|------|
-| **Claim-check pattern** | Large body → reference | Payloads > 256 KB |
-| **Compression** | Reduce transfer size | API responses > 1 KB |
-| **Pagination** | Limit response size | Collection endpoints |
-| **Field selection** | Return only requested fields | GraphQL or sparse fieldset |
-| **Binary formats** | Protobuf/MessagePack vs JSON | High-throughput internal APIs |
-
-**Claim-check for large payloads:**
-
-```typescript
-// Instead of putting large data in the event:
-// ❌ { type: "FileUploaded", data: { content: "<10MB base64>" } }
-
-// Store in object storage and pass the reference:
-// ✅ { type: "FileUploaded", data: { bucket: "uploads", key: "abc/file.pdf" } }
-
-export async function processFile(event: SQSEvent) {
-  const { bucket, key } = JSON.parse(event.Records[0].body);
-  const file = await s3.getObject({ Bucket: bucket, Key: key });
-  // Process the file...
-}
-```
+| Pattern | Fix |
+|---------|-----|
+| Default 128 MB memory on all functions without tuning | Run power tuning benchmarks per function; choose the cost-optimal setting |
+| Importing the entire SDK (`aws-sdk` v2, 70 MB) | Import only the specific v3 client package needed |
+| All functions placed in a VPC regardless of need | Use VPC only for functions that access private network resources |
+| Creating SDK clients inside the handler on every invocation | Move all client initialisation to module scope |
+| Provisioned concurrency on all functions as a default | Use it only on latency-critical synchronous endpoints |
+| No concurrency limit on database-connected functions | Set a maximum concurrency limit; use a connection proxy |
 
 ## Best Practices
 
-- **Measure before optimising.** Profile your functions to find the actual bottleneck. Don't optimise cold starts if your P95 latency is dominated by database queries.
-- **Bundle and tree-shake.** Use esbuild, webpack, or similar to produce minimal deployment packages. This is the highest-impact cold start optimisation.
-- **Tune memory based on data.** Run power tuning tests. The cheapest configuration is rarely the lowest or highest memory setting.
-- **Reserve concurrency for critical paths.** Don't let a traffic spike on your analytics function starve your payment processor.
-- **Use ARM64 where available.** Better price/performance and often faster cold starts.
-- **Monitor cold start rate continuously.** Target <5% cold start rate for user-facing sync functions.
-
-## Common Pitfalls
-
-- **Default memory for everything.** The default (128 MB on AWS, 1.5 GB on Azure) is rarely optimal. Always tune.
-- **Including the entire SDK.** Importing `aws-sdk` (v2, 70 MB) instead of `@aws-sdk/client-dynamodb` (v3, 2 MB) adds hundreds of milliseconds to cold starts.
-- **VPC for everything.** Putting functions in a VPC when they don't access private resources adds 500ms+ to cold starts. Only use VPC when required.
-- **No keep-alive on HTTP clients.** Without `keepAlive: true`, every SDK call opens a new TCP connection.
-- **Provisioned concurrency as a default.** Provisioned concurrency eliminates cold starts but costs money 24/7. Use it only for latency-critical synchronous endpoints, not for async queue processors.
-- **Ignoring concurrency limits.** Account-level concurrency limits (1000 on AWS) are shared across all functions. One runaway function can throttle everything.
-
-## Reference
-
-- [AWS Lambda Performance Optimization](https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html)
-- [Azure Functions Performance](https://learn.microsoft.com/en-us/azure/azure-functions/functions-best-practices)
-- [AWS Lambda Power Tuning](https://github.com/alexcasalboni/aws-lambda-power-tuning)
-- [esbuild](https://esbuild.github.io/)
-- [Serverless Performance (theburningmonk)](https://theburningmonk.com/2019/09/how-to-make-lambda-cold-starts-a-non-issue/)
+- Measure before optimising — profile to find the actual bottleneck (cold start vs. database latency vs. CPU)
+- Bundle and tree-shake every function individually; this is the highest-impact cold start optimisation
+- Run memory power tuning benchmarks; the cheapest setting is rarely the lowest or highest memory value
+- Reserve concurrency for critical synchronous paths; throttle concurrency for database-connected functions
+- Use ARM64 where available for better price-performance ratio
+- Target cold start rate below 5% for synchronous user-facing functions; monitor continuously
+- Enable HTTP keep-alive on all SDK and HTTP clients in module scope
+- Avoid VPC placement unless the function genuinely requires access to private network resources

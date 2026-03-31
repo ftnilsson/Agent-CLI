@@ -1,122 +1,84 @@
 # State Management
 
-## Description
+## State Classification
 
-Choose, structure, and maintain application state in frontend applications — from local component state to global stores, URL state, and server-cache state. This skill covers the universal patterns that work across React, Vue, Svelte, Angular, and similar frameworks: when to use which type of state, how to keep it normalised, and how to avoid the most common state-related bugs.
+Classify every piece of state before choosing where it lives:
 
-## When To Use
-
-- Deciding where a piece of data should live (component, context, store, URL, server)
-- Implementing a feature that requires shared state across distant components
-- Debugging stale, duplicated, or inconsistent UI state
-- Evaluating whether to introduce a state management library
-- Refactoring an application where "everything is global"
-
-## Prerequisites
-
-- Understanding of component architecture and data flow (props down, events up)
-- Familiarity with at least one component framework
-
-## Instructions
-
-### 1. Classify Your State
-
-Not all state is equal. Before choosing a tool, classify what you're storing:
-
-| Type | Lifetime | Examples | Typical home |
-|------|----------|----------|--------------|
-| **Local / UI** | Single component | Open/closed toggle, input value, hover | Component state |
+| Type | Lifetime | Examples | Home |
+|------|----------|----------|------|
+| **Local / UI** | Single component | Toggle open/closed, hover, input value | Component state |
 | **Shared / App** | Multiple components | Current user, theme, feature flags | Context / store |
 | **Server / Remote** | Backend-owned, cached | API responses, paginated lists | Cache layer (React Query, SWR, Apollo) |
 | **URL** | Persisted in address bar | Filters, pagination, selected tab | Router / query params |
 | **Form** | Duration of a form session | Field values, validation errors, dirty flags | Form library or local state |
 
-**Rule of thumb:** Start with the narrowest scope that works. Promote state to a wider scope only when two or more unrelated components need it.
+Start with the narrowest scope that works. Promote state upward only when two or more unrelated components need it.
 
-### 2. Keep Server State in a Cache Layer
+## Server State
 
-The single biggest improvement most apps can make: **stop putting API data in global stores.** Use a dedicated server-state cache instead.
+- Never put API data in a global store. Use a dedicated server-state cache instead.
+- A cache layer provides automatic background refetching, deduplication, built-in loading/error states, and cache invalidation tied to mutations.
+- Mixing server state and UI state in the same store creates manual, error-prone synchronisation logic.
 
-Benefits:
-- Automatic background refetching and stale-while-revalidate
-- Deduplication of identical requests
-- Built-in loading/error states
-- Cache invalidation tied to mutations
+## Store Shape
 
-This eliminates an entire class of bugs: stale data, missing loading states, and manual cache synchronisation.
-
-### 3. Normalise Shared State
-
-When you do need a global store, normalise it like a database:
+Normalise global stores like a database — one source of truth per entity:
 
 ```
-// ❌ Nested / denormalised
-{ orders: [{ id: 1, customer: { id: 5, name: "Alice" } }] }
-
-// ✅ Normalised
+// Normalised (correct)
 {
-  orders: { byId: { 1: { id: 1, customerId: 5 } } },
+  orders:    { byId: { 1: { id: 1, customerId: 5 } } },
   customers: { byId: { 5: { id: 5, name: "Alice" } } }
 }
+
+// Denormalised (avoid)
+{ orders: [{ id: 1, customer: { id: 5, name: "Alice" } }] }
 ```
 
-**Why:** A single source of truth per entity prevents inconsistency when the same data appears in multiple views.
+## Derived State
 
-### 4. Derive, Don't Duplicate
-
-If a value can be computed from existing state, compute it — don't store it separately.
+Never store a value that can be computed from existing state:
 
 ```
-// ❌ Stored redundantly
-state.items = [...]
-state.itemCount = 3        // must be kept in sync manually
-
-// ✅ Derived
+// Correct — derived, never out of sync
 const itemCount = computed(() => state.items.length)
+
+// Wrong — must be kept in sync manually
+state.itemCount = 3
 ```
 
-Derived state can never be out of sync because it has no independent storage.
+## URL as State
 
-### 5. Use the URL as State
+Treat the URL as the source of truth for navigational state. Store filters, search queries, pagination, selected tabs, and modal-open flags in query params so users can bookmark and share the exact view and browser back/forward works as expected.
 
-Filters, search queries, pagination, selected tabs, and modal-open flags often belong in the URL:
+## Before Adding State
 
-- Users can bookmark and share the exact view
-- Browser back/forward works as expected
-- Deep linking works out of the box
-
-Sync URL ↔ component state, and treat the URL as the source of truth for navigational state.
-
-### 6. Minimise State Surface Area
-
-Before adding state, ask:
+Ask in order:
 1. Can I derive it from existing state?
 2. Can I get it from the URL?
 3. Can I re-fetch it from the server when needed?
 4. Does more than one component actually need it?
 
-If all answers are no, it's local component state. Don't promote it.
+If all answers are no, it belongs in local component state.
+
+## Anti-patterns
+
+| Pattern | Fix |
+|---------|-----|
+| Everything in a global store by default | Collocate state; promote only when sharing is required |
+| API data stored alongside UI toggles | Separate server state into a cache layer |
+| State shape mirrors API shape | Transform at the boundary; isolate from backend schema changes |
+| Storing computed values (`itemCount`) | Derive with computed/selector |
+| Components subscribe to entire store | Subscribe to the narrowest slice needed |
+| Waiting for server confirmation before updating UI | Apply optimistic update; roll back on failure |
 
 ## Best Practices
 
-- **Collocate state with the UI that uses it.** Move it up only when sharing is required.
-- **Keep store actions/mutations coarse-grained.** One action per user intent (e.g., `checkout`) not per field (`setAddress`, `setCity`, `setZip`).
-- **Make state updates immutable** (or use libraries that handle immutability for you). Mutation-based bugs are among the hardest to trace.
-- **Name state by what it represents, not how it's used.** `currentUser` not `headerData`.
-- **Use selectors/getters to encapsulate access.** Components should not know the internal shape of the store.
-- **Treat loading and error as first-class states.** Every piece of async state has at least three states: idle, loading, error, success. Model all of them.
-
-## Common Pitfalls
-
-- **Global by default.** Putting everything in a store "just in case" creates a monolith of coupled state that's hard to reason about and test.
-- **Mixing server and client state.** Storing fetched API data in the same store as UI toggles leads to manual (and buggy) synchronisation logic.
-- **Stale closures.** In frameworks with hooks/closures, referencing state inside callbacks without proper dependency tracking returns outdated values. Understand your framework's reactivity model.
-- **State shape coupled to API shape.** Transform API responses into the shape your UI needs at the boundary. Don't let backend schema changes cascade through your components.
-- **Over-rendering.** Subscribing an entire component tree to a large store causes unnecessary re-renders. Subscribe to the narrowest slice needed.
-- **Missing optimistic updates.** Waiting for server confirmation before updating the UI makes interactions feel sluggish. Apply the change immediately and roll back on failure.
-
-## Reference
-
-- [Patterns.dev — State Management](https://www.patterns.dev/)
-- [TkDodo's Blog — Practical React Query](https://tkdodo.eu/blog/practical-react-query)
-- [XState — State Machines for UI](https://stately.ai/docs)
+- Collocate state with the UI that uses it; lift only when sharing is required.
+- Keep store actions coarse-grained: one action per user intent (`checkout`), not per field (`setCity`, `setZip`).
+- Make state updates immutable, or use a library that enforces immutability.
+- Name state by what it represents, not how it is used: `currentUser` not `headerData`.
+- Use selectors or getters to encapsulate store access — components must not depend on internal store shape.
+- Model all async states explicitly: idle, loading, error, success.
+- Understand your framework's reactivity model to avoid stale-closure bugs in callbacks.
+- Treat form state separately from application state — form libraries handle field lifecycle better than general stores.
