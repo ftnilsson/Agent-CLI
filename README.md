@@ -79,10 +79,9 @@ agent preset nextjs
 agent install
 
 # 3. Install to your preferred AI tool
-agent install --target copilot    # → .github/copilot-instructions.md + .agent/ folder
-agent install --target claude     # → CLAUDE.md (no .agent/ folder)
-agent install --target cursor     # → .cursorrules (no .agent/ folder)
-agent install --target mixed      # → All three files simultaneously
+agent install --target copilot    # → .github/copilot-instructions.md + .github/skills/
+agent install --target claude     # → CLAUDE.md + .claude/skills/
+agent install --target cursor     # → .cursorrules + .cursor/skills/
 ```
 
 ## Commands
@@ -110,33 +109,33 @@ agent init github:your-org/agents -i                        # shorthand
 ### `agent install`
 
 Read `.agent.json` and install everything:
-- **Skills** → copied into the output directory (only for `--target copilot` or `--all`)
-- **Agent instructions** → composed into one or more output files
-- **Local overrides** → automatically appended from `local-instructions.md`
+- **Skills** → copied into a target-specific directory on disk
+- **Agent instructions** → copied into a target-specific directory on disk
+- **Index file** → a slim reference file (≤200 lines) linking to the installed files
+- **Local overrides** → content from `local-instructions.md` is embedded inline in the index file
+- **Prompts** → copied into a target-specific prompts directory
 
 #### Basic Usage
 
 ```bash
-agent install                       # default: installs to .github/copilot-instructions.md
-agent install --target copilot      # Copilot (.github/copilot-instructions.md) + .agent/
-agent install --target claude       # Claude (CLAUDE.md) - no .agent/ folder
-agent install --target cursor       # Cursor (.cursorrules) - no .agent/ folder
-agent install --target mixed        # All three targets simultaneously
+agent install                       # default: copilot target
+agent install --target copilot      # .github/copilot-instructions.md + .github/skills/ + .github/agents/
+agent install --target claude       # CLAUDE.md + .claude/skills/ + .claude/agents/
+agent install --target cursor       # .cursorrules + .cursor/skills/ + .cursor/agents/
 agent install --skip-gitignore      # skip adding generated files to .gitignore
 ```
 
 #### Understanding Install Targets
 
-When you specify a target, the behavior changes:
+Each target installs a slim index file and places all skills/agents on disk in a target-specific directory:
 
-| Target | Output Files | Skills Installed to .agent/ | Prompts Installed |
+| Target | Index file | Skills & agents | Prompts |
 |---|---|---|---|
-| `copilot` (default) | `.github/copilot-instructions.md` | ✅ Yes | ✅ Yes |
-| `claude` | `CLAUDE.md` | ❌ No | ❌ No |
-| `cursor` | `.cursorrules` | ❌ No | ❌ No |
-| `mixed` | All 3 files | ✅ Yes | ✅ Yes |
+| `copilot` (default) | `.github/copilot-instructions.md` | `.github/skills/`, `.github/agents/` | `.github/prompts/` |
+| `claude` | `CLAUDE.md` | `.claude/skills/`, `.claude/agents/` | `.claude/prompts/` |
+| `cursor` | `.cursorrules` | `.cursor/skills/`, `.cursor/agents/` | `.cursor/prompts/` |
 
-**Why?** Tools like Claude and Cursor don't need the `.agent/` folder — they only need the composed instruction file. This keeps your repository cleaner.
+The index file is intentionally small — it contains your local overrides inline and a list of links pointing to the installed skill and agent files on disk. The AI tool reads those linked files directly.
 
 If your `.agent.json` has a `defaultTarget` field, that will be used when no `--target` is specified:
 
@@ -153,7 +152,7 @@ If your `.agent.json` has a `defaultTarget` field, that will be used when no `--
 
 | Option | Description |
 |---|---|
-| `--target <target>` | Install target — `copilot`, `claude`, `cursor`, or `mixed` (default: `copilot`) |
+| `--target <target>` | Install target — `copilot`, `claude`, or `cursor` (default: `copilot`) |
 | `--skip-gitignore` | Skip auto-adding generated files to `.gitignore` |
 
 By default, the CLI checks that generated files are listed in `.gitignore` and adds them automatically. Use `--skip-gitignore` to opt out.
@@ -239,7 +238,7 @@ Preview what would change on the next `agent install` — like `terraform plan` 
 agent diff
 agent diff --target copilot
 agent diff --target claude
-agent diff --target mixed
+agent diff --target cursor
 ```
 
 Output markers:
