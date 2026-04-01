@@ -159,7 +159,7 @@ export function composeAgentFile(sections: string[]): string {
 
 /**
  * Compose a slim index file referencing installed skills and agents on disk.
- * Keeps the output file small (≤200 lines) regardless of how many skills are installed.
+ * Produces a short header plus one entry per referenced agent and skill, with optional local overrides.
  */
 export function composeSlimAgentFile(
   agentRefs: SlimFileRef[],
