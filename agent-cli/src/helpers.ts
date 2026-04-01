@@ -43,7 +43,7 @@ export function resolveAgentOutputPath(
 
 /**
  * Resolve output paths for agent instructions based on target.
- * Returns array of paths for the target (1 for single targets, 3 for "mixed").
+ * Returns an array containing the single output path for the given target.
  */
 export function resolveAgentOutputPaths(target: InstallTarget): string[] {
   switch (target) {
