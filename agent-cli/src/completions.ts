@@ -73,7 +73,7 @@ _agent() {
           ;;
         install)
           _arguments \\
-            '--target[Install target]:target:(copilot claude cursor mixed)' \\
+            '--target[Install target]:target:(copilot claude cursor)' \\
             '--skip-gitignore[Skip auto-adding to .gitignore]'
           ;;
         list)
@@ -122,7 +122,7 @@ _agent_completions() {
   case "\${COMP_WORDS[1]}" in
     install)
       if [[ "$prev" == "--target" ]]; then
-        COMPREPLY=( $(compgen -W "copilot claude cursor mixed" -- "$cur") )
+        COMPREPLY=( $(compgen -W "copilot claude cursor" -- "$cur") )
         return
       fi
       COMPREPLY=( $(compgen -W "--target --skip-gitignore" -- "$cur") )
@@ -192,7 +192,7 @@ complete -c agent -n '__fish_use_subcommand' -s v -l version -d 'Show version'
 complete -c agent -n '__fish_seen_subcommand_from init' -l output -d 'Output directory' -r -a '(__fish_complete_directories)'
 
 # install options
-complete -c agent -n '__fish_seen_subcommand_from install' -l target -d 'Install target' -r -a 'copilot claude cursor mixed'
+complete -c agent -n '__fish_seen_subcommand_from install' -l target -d 'Install target' -r -a 'copilot claude cursor'
 complete -c agent -n '__fish_seen_subcommand_from install' -l skip-gitignore -d 'Skip auto-adding to .gitignore'
 
 # list options
