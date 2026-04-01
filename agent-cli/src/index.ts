@@ -342,6 +342,9 @@ function cmdInstall(args: string[]): void {
 
   if (agents.length > 0) {
     const agentsOutDir = path.resolve(contentDirs.agents);
+    if (fs.existsSync(agentsOutDir)) {
+      fs.rmSync(agentsOutDir, { recursive: true, force: true });
+    }
     fs.mkdirSync(agentsOutDir, { recursive: true });
 
     for (const { key, srcPath } of agents) {
