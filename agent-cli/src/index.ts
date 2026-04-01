@@ -18,6 +18,7 @@ import {
   resolveContentOutputDirs,
   parseInstallTarget,
   composeAgentFile,
+  composeSlimAgentFile,
   resolveIncludes,
   findAgentFile,
   findSkillFile,
@@ -25,6 +26,7 @@ import {
   findMissingGitignoreEntries,
   generateSkillsIndexContent,
   type ResolvedEntry,
+  type SlimFileRef,
   type InstallTarget as InstallTargetHelper,
 } from "./helpers.js";
 import {
@@ -284,15 +286,12 @@ function cmdInstall(args: string[]): void {
   const target = parseInstallTarget(args, manifest.defaultTarget ?? "copilot");
   const outputPaths = resolveAgentOutputPaths(target);
   const contentDirs = resolveContentOutputDirs(target);
-  const shouldInstallSkills = target === "copilot" || target === "mixed";
   const skipGitignore = args.includes("--skip-gitignore");
 
   // Display info
   console.log(`\n  ${icon.link} ${c.dim}Source:${c.reset}  ${manifest.source} @ ${c.cyan}${manifest.ref}${c.reset}`);
-  if (shouldInstallSkills) {
-    console.log(`  ${icon.folder} ${c.dim}Skills:${c.reset}  ${contentDirs.skills}`);
-  }
-  console.log(`  ${icon.agent} ${c.dim}Target:${c.reset}  ${target}${target === "mixed" ? ` (${outputPaths.join(", ")})` : ` (${outputPaths[0]})`}\n`);
+  console.log(`  ${icon.folder} ${c.dim}Skills:${c.reset}  ${contentDirs.skills}`);
+  console.log(`  ${icon.agent} ${c.dim}Target:${c.reset}  ${target} (${outputPaths[0]})\n`);
 
   // 1. Clone / checkout
   const spinner = new Spinner(`Fetching from ${c.dim}${manifest.source}${c.reset}`);
@@ -306,10 +305,10 @@ function cmdInstall(args: string[]): void {
   // 3. Resolve each include entry, separating skills from agents
   const { skills, agents } = resolveIncludes(manifest.include, registry);
 
-  // 4. Install skills into target-specific output directory (only for copilot or mixed)
-  const skillSections: string[] = [];
+  // 4. Install skills to disk, collecting refs for the slim output file
+  const skillRefs: SlimFileRef[] = [];
 
-  if (shouldInstallSkills && skills.length > 0) {
+  if (skills.length > 0) {
     const outRoot = path.resolve(contentDirs.skills);
     if (fs.existsSync(outRoot)) {
       fs.rmSync(outRoot, { recursive: true });
@@ -328,31 +327,25 @@ function cmdInstall(args: string[]): void {
       copyDir(src, dest);
       console.log(`  ${icon.success}  ${key} ${icon.arrow} ${path.relative(process.cwd(), dest)}`);
 
-      // Collect skill content for composition into the agent output file
-      const skillFile = findSkillFile(src);
+      const skillFile = findSkillFile(dest);
       if (skillFile) {
-        const content = fs.readFileSync(skillFile, "utf-8").trim();
-        skillSections.push(content);
+        skillRefs.push({ label: key, filePath: skillFile.replace(/\\/g, "/") });
       }
     }
 
     generateSkillsIndex(outRoot, skills);
     console.log(`\n  ${icon.install} Installed ${c.bold}${skills.length}${c.reset} skill(s) into ${c.cyan}${contentDirs.skills}/${c.reset}`);
-  } else if (!shouldInstallSkills && skills.length > 0) {
-    // For non-copilot targets, still collect skill content for composition (from source, not installed)
-    for (const { key, srcPath } of skills) {
-      const src = path.join(repoDir, srcPath);
-      const skillFile = findSkillFile(src);
-      if (skillFile) {
-        const content = fs.readFileSync(skillFile, "utf-8").trim();
-        skillSections.push(content);
-      }
-    }
   }
 
-  // 5. Compose skills + agent instructions into output files
-  if (skillSections.length > 0 || agents.length > 0) {
-    const sections: string[] = [...skillSections];
+  // 5. Install agents to disk, collecting refs for the slim output file
+  const agentRefs: SlimFileRef[] = [];
+
+  if (agents.length > 0) {
+    const agentsOutDir = path.resolve(contentDirs.agents);
+    if (fs.existsSync(agentsOutDir)) {
+      fs.rmSync(agentsOutDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(agentsOutDir, { recursive: true });
 
     for (const { key, srcPath } of agents) {
       const src = path.join(repoDir, srcPath);
@@ -363,98 +356,79 @@ function cmdInstall(args: string[]): void {
         continue;
       }
 
-      const content = fs.readFileSync(agentFile, "utf-8").trim();
-      sections.push(content);
-      console.log(`  ${icon.success}  ${key} ${icon.arrow} ${outputPaths.join(", ")}`);
+      const dest = path.join(agentsOutDir, `${key.replace("/", "-")}.md`);
+      fs.copyFileSync(agentFile, dest);
+      console.log(`  ${icon.success}  ${key} ${icon.arrow} ${path.relative(process.cwd(), dest)}`);
+      agentRefs.push({ label: key, filePath: dest.replace(/\\/g, "/") });
     }
 
-    // Append local overrides if present
+    console.log(`\n  ${icon.install} Installed ${c.bold}${agents.length}${c.reset} agent(s) into ${c.cyan}${contentDirs.agents}/${c.reset}`);
+  }
+
+  if (skillRefs.length === 0 && agentRefs.length === 0) {
+    console.log(`  ${icon.info} No valid entries found to install.`);
+  }
+
+  // 6. Compose slim output file referencing installed files on disk
+  if (skillRefs.length > 0 || agentRefs.length > 0) {
+    let localOverrides: string | undefined;
     const localOverridesPath = path.resolve(LOCAL_INSTRUCTIONS_FILE);
     if (fs.existsSync(localOverridesPath)) {
       const localContent = fs.readFileSync(localOverridesPath, "utf-8").trim();
       if (localContent) {
-        sections.push(localContent);
-        console.log(`  ${icon.success}  ${LOCAL_INSTRUCTIONS_FILE} ${icon.arrow} ${outputPaths.join(", ")} ${c.dim}(local overrides)${c.reset}`);
+        localOverrides = localContent;
+        console.log(`  ${icon.success}  ${LOCAL_INSTRUCTIONS_FILE} ${icon.arrow} ${outputPaths[0]} ${c.dim}(local overrides)${c.reset}`);
       }
     }
 
-    if (sections.length > 0) {
-      const composed = composeAgentFile(sections);
+    const composed = composeSlimAgentFile(agentRefs, skillRefs, localOverrides);
+    const fullPath = path.resolve(outputPaths[0]);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, composed);
 
-      // Write to all output paths (usually just 1, or 3 for mixed)
-      for (const outputPath of outputPaths) {
-        const fullPath = path.resolve(outputPath);
-        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-        fs.writeFileSync(fullPath, composed);
+    console.log(`\n  ${icon.compose} Composed slim index into ${c.cyan}${outputPaths[0]}${c.reset}`);
+  }
+
+  // 7. Install prompts for included categories
+  const includedCats = new Set(manifest.include.map((i) => i.split("/")[0]));
+  let promptCount = 0;
+  const promptsOutDir = path.resolve(contentDirs.prompts);
+  if (fs.existsSync(promptsOutDir)) {
+    fs.rmSync(promptsOutDir, { recursive: true, force: true });
+  }
+
+  for (const [catKey, cat] of Object.entries(registry.categories)) {
+    if (!cat.prompts || !includedCats.has(catKey)) continue;
+
+    const promptsPath = cat.promptsPath ?? path.join(path.dirname(cat.path), "prompts");
+
+    for (const [promptKey, filename] of Object.entries(cat.prompts)) {
+      const src = path.join(repoDir, promptsPath, filename);
+      if (!fs.existsSync(src)) {
+        console.warn(`  ${icon.warning} Prompt file not found: ${promptsPath}/${filename}`);
+        continue;
       }
 
-      const totalCount = skillSections.length + agents.length;
-      console.log(`\n  ${icon.compose} Composed ${c.bold}${totalCount}${c.reset} item(s) into ${c.cyan}${outputPaths.join(", ")}${c.reset}`);
+      const destDir = path.join(promptsOutDir, catKey);
+      fs.mkdirSync(destDir, { recursive: true });
+      const dest = path.join(destDir, filename);
+      fs.copyFileSync(src, dest);
+      console.log(`  ${icon.prompt}  ${catKey}/${promptKey} ${icon.arrow} ${path.relative(process.cwd(), dest)}`);
+      promptCount++;
     }
   }
 
-  if (skillSections.length === 0 && agents.length === 0) {
-    console.log(`  ${icon.info} No valid entries found to install.`);
-  }
-
-  // 6. Install agents (agent.md files) to target-specific directory (only for copilot or mixed)
-  if (shouldInstallSkills && agents.length > 0) {
-    const agentsOutDir = path.resolve(contentDirs.agents);
-    fs.mkdirSync(agentsOutDir, { recursive: true });
-    
-    for (const { key, srcPath } of agents) {
-      const src = path.join(repoDir, srcPath);
-      const agentFile = findAgentFile(src);
-      if (agentFile) {
-        const fileName = path.basename(agentFile);
-        const dest = path.join(agentsOutDir, `${key.replace("/", "-")}.md`);
-        fs.copyFileSync(agentFile, dest);
-        console.log(`  ${icon.success}  ${key} ${icon.arrow} ${path.relative(process.cwd(), dest)}`);
-      }
-    }
-    
-    console.log(`\n  ${icon.install} Installed ${c.bold}${agents.length}${c.reset} agent(s) into ${c.cyan}${contentDirs.agents}/${c.reset}`);
-  }
-
-  // 7. Install prompts for included categories (only for copilot or mixed)
-  if (shouldInstallSkills) {
-    const includedCats = new Set(manifest.include.map((i) => i.split("/")[0]));
-    let promptCount = 0;
-    const promptsOutDir = path.resolve(contentDirs.prompts);
-
-    for (const [catKey, cat] of Object.entries(registry.categories)) {
-      if (!cat.prompts || !includedCats.has(catKey)) continue;
-
-      const promptsPath = cat.promptsPath ?? path.join(path.dirname(cat.path), "prompts");
-
-      for (const [promptKey, filename] of Object.entries(cat.prompts)) {
-        const src = path.join(repoDir, promptsPath, filename);
-        if (!fs.existsSync(src)) {
-          console.warn(`  ${icon.warning} Prompt file not found: ${promptsPath}/${filename}`);
-          continue;
-        }
-
-        const destDir = path.join(promptsOutDir, catKey);
-        fs.mkdirSync(destDir, { recursive: true });
-        const dest = path.join(destDir, filename);
-        fs.copyFileSync(src, dest);
-        console.log(`  ${icon.prompt}  ${catKey}/${promptKey} ${icon.arrow} ${path.relative(process.cwd(), dest)}`);
-        promptCount++;
-      }
-    }
-
-    if (promptCount > 0) {
-      console.log(`\n  ${icon.prompt} Installed ${c.bold}${promptCount}${c.reset} prompt(s) into ${c.cyan}${path.relative(process.cwd(), promptsOutDir)}/${c.reset}`);
-    }
+  if (promptCount > 0) {
+    console.log(`\n  ${icon.prompt} Installed ${c.bold}${promptCount}${c.reset} prompt(s) into ${c.cyan}${path.relative(process.cwd(), promptsOutDir)}/${c.reset}`);
   }
 
   // 8. .gitignore guard — check and update .gitignore for target-specific directories
-  if (!skipGitignore && shouldInstallSkills) {
+  if (!skipGitignore) {
     const dirsToCheck = [contentDirs.skills, contentDirs.prompts, contentDirs.agents];
     for (const dir of dirsToCheck) {
       checkGitignore(dir);
     }
-  } else if (skipGitignore) {
+  } else {
     console.log(`\n  ${icon.info} Skipping .gitignore check ${c.dim}(--skip-gitignore)${c.reset}`);
   }
 }
@@ -826,10 +800,10 @@ function cmdDiff(args: string[]): void {
     return;
   }
 
-  // Support both --target (new) and --format (deprecated) for backward compatibility
   const target = parseInstallTarget(args, manifest.defaultTarget ?? "copilot");
   const outputPaths = resolveAgentOutputPaths(target);
-  const agentOutputPath = outputPaths[0]; // For diff, use first output path
+  const contentDirs = resolveContentOutputDirs(target);
+  const agentOutputPath = outputPaths[0];
 
   const spinner = new Spinner("Comparing manifest against installed files");
   spinner.start();
@@ -844,7 +818,7 @@ function cmdDiff(args: string[]): void {
   console.log();
 
   // ── Skills diff ──
-  const outRoot = path.resolve(manifest.outputDir);
+  const outRoot = path.resolve(contentDirs.skills);
 
   for (const { key, srcPath, destFolder } of skills) {
     const dest = path.join(outRoot, destFolder);
@@ -876,49 +850,43 @@ function cmdDiff(args: string[]): void {
     }
   }
 
-  // ── Composed output (skills + agent instructions) diff ──
+  // ── Slim output file diff ──
   if (skills.length > 0 || agents.length > 0) {
     const outputPath = path.resolve(agentOutputPath);
     if (!fs.existsSync(outputPath)) {
       console.log(`  ${c.green}+${c.reset}  ${agentOutputPath}  ${c.dim}(new \u2014 will be created)${c.reset}`);
       changes++;
     } else {
-      const sections: string[] = [];
+      // Build the slim refs as install would produce them, to compare
+      const skillRefs: SlimFileRef[] = skills
+        .map(({ key, destFolder }) => {
+          const skillPath = path.join(outRoot, destFolder);
+          const skillFile = findSkillFile(skillPath);
+          return skillFile ? { label: key, filePath: skillFile.replace(/\\/g, "/") } : null;
+        })
+        .filter((r): r is SlimFileRef => r !== null);
 
-      // Collect skill content
-      for (const { srcPath } of skills) {
-        const src = path.join(repoDir, srcPath);
-        const skillFile = findSkillFile(src);
-        if (skillFile) {
-          sections.push(fs.readFileSync(skillFile, "utf-8").trim());
-        }
-      }
+      const agentsOutDir = path.resolve(contentDirs.agents);
+      const agentRefs: SlimFileRef[] = agents
+        .map(({ key }) => {
+          const dest = path.join(agentsOutDir, `${key.replace("/", "-")}.md`);
+          return { label: key, filePath: dest.replace(/\\/g, "/") };
+        });
 
-      // Collect agent instruction content
-      for (const { srcPath } of agents) {
-        const src = path.join(repoDir, srcPath);
-        const agentFile = findAgentFile(src);
-        if (agentFile) {
-          sections.push(fs.readFileSync(agentFile, "utf-8").trim());
-        }
-      }
-
-      // Include local overrides in comparison
+      let localOverrides: string | undefined;
       const localPath = path.resolve(LOCAL_INSTRUCTIONS_FILE);
       if (fs.existsSync(localPath)) {
         const local = fs.readFileSync(localPath, "utf-8").trim();
-        if (local) sections.push(local);
+        if (local) localOverrides = local;
       }
 
-      if (sections.length > 0) {
-        const newContent = composeAgentFile(sections);
-        const currentContent = fs.readFileSync(outputPath, "utf-8");
-        if (newContent !== currentContent) {
-          console.log(`  ${c.yellow}~${c.reset}  ${agentOutputPath}  ${c.dim}(instructions modified)${c.reset}`);
-          changes++;
-        } else {
-          console.log(`  ${c.dim}=${c.reset}  ${agentOutputPath}  ${c.dim}(unchanged)${c.reset}`);
-        }
+      const newContent = composeSlimAgentFile(agentRefs, skillRefs, localOverrides);
+      const currentContent = fs.readFileSync(outputPath, "utf-8");
+      if (newContent !== currentContent) {
+        console.log(`  ${c.yellow}~${c.reset}  ${agentOutputPath}  ${c.dim}(index modified)${c.reset}`);
+        changes++;
+      } else {
+        console.log(`  ${c.dim}=${c.reset}  ${agentOutputPath}  ${c.dim}(unchanged)${c.reset}`);
       }
     }
   }
@@ -1223,10 +1191,9 @@ function printHelp(): void {
 
     ${icon.install}  ${c.cyan}install${c.reset}                    Pull skills + compose agent instructions
         --target <target>        Install target (default: copilot):
-                                   copilot  ${icon.arrow} .github/copilot-instructions.md + .agent/
-                                   claude   ${icon.arrow} CLAUDE.md
-                                   cursor   ${icon.arrow} .cursorrules
-                                   mixed    ${icon.arrow} All three
+                                   copilot  ${icon.arrow} .github/copilot-instructions.md + .github/
+                                   claude   ${icon.arrow} CLAUDE.md + .claude/
+                                   cursor   ${icon.arrow} .cursorrules + .cursor/
         --skip-gitignore         Skip auto-adding generated files to .gitignore
 
     ${icon.list}  ${c.cyan}list${c.reset}                       Show entries in your manifest
@@ -1250,7 +1217,7 @@ function printHelp(): void {
         e.g. agent preset --list
 
     ${icon.diff}  ${c.cyan}diff${c.reset}                       Preview what would change on next install
-        --target <target>        Install target (copilot, claude, cursor, mixed)
+        --target <target>        Install target (copilot, claude, cursor)
 
     ${icon.scaffold}  ${c.cyan}create${c.reset} <agent|skill>       Scaffold a new agent.md or skill.md template
         e.g. agent create agent
@@ -1291,7 +1258,6 @@ function printHelp(): void {
     ${c.cyan}agent install --target copilot${c.reset}
     ${c.cyan}agent install --target cursor${c.reset}
     ${c.cyan}agent install --target claude${c.reset}
-    ${c.cyan}agent install --target mixed${c.reset}
 
     ${c.dim}# Scaffold templates${c.reset}
     ${c.cyan}agent create agent${c.reset}

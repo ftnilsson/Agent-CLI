@@ -49,8 +49,8 @@ export function cloneOrUpdate(source: string, ref: string): string {
       exec(`git reset --hard origin/${defaultBranch}`, repoDir);
     } else {
       exec(`git checkout ${ref}`, repoDir);
-      // If it's a branch, try to fast-forward
-      exec("git pull --ff-only 2>/dev/null || true", repoDir);
+      // If it's a branch, try to fast-forward (ignore failure — ref may be a tag/SHA)
+      try { exec("git pull --ff-only", repoDir); } catch { /* detached HEAD or tag — ok */ }
     }
   } else {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
@@ -96,10 +96,11 @@ export function copyDir(src: string, dest: string): void {
  * Get the latest tag (or short SHA if no tags) from a repo directory.
  */
 export function getLatestRef(repoDir: string): string {
-  return exec(
-    'git describe --tags --abbrev=0 2>/dev/null || git rev-parse --short HEAD',
-    repoDir,
-  ).trim();
+  try {
+    return exec("git describe --tags --abbrev=0", repoDir).trim();
+  } catch {
+    return exec("git rev-parse --short HEAD", repoDir).trim();
+  }
 }
 
 // ─── Internal ────────────────────────────────────────────────────────────────
