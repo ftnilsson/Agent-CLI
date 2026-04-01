@@ -393,6 +393,9 @@ function cmdInstall(args: string[]): void {
   const includedCats = new Set(manifest.include.map((i) => i.split("/")[0]));
   let promptCount = 0;
   const promptsOutDir = path.resolve(contentDirs.prompts);
+  if (fs.existsSync(promptsOutDir)) {
+    fs.rmSync(promptsOutDir, { recursive: true, force: true });
+  }
 
   for (const [catKey, cat] of Object.entries(registry.categories)) {
     if (!cat.prompts || !includedCats.has(catKey)) continue;
