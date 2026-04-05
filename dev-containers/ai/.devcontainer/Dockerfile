@@ -82,7 +82,7 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
-# Insatll Github copilot cli
+# Install Github copilot cli
 RUN npm install -g @github/copilot@${COPILOT_CLI_VERSION}
 
 # Copy and set up firewall script
