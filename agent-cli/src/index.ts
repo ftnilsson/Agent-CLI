@@ -1205,17 +1205,27 @@ function cmdDevContainer(args: string[]): void {
 
   spinner.stop(`Template located ${c.dim}(dev-containers/${target})${c.reset}`);
 
-  // Count files to copy (excluding the .devcontainer wrapper folder itself)
+  // Support both dev-containers/<target>/.devcontainer/* and
+  // dev-containers/<target>/* template layouts, preferring the nested
+  // .devcontainer directory when present.
   const devContainerSrc = path.join(templateSrc, ".devcontainer");
-  const hasFiles =
+  const nestedHasFiles =
     fs.existsSync(devContainerSrc) && fs.readdirSync(devContainerSrc).length > 0;
+  const rootHasFiles = fs.readdirSync(templateSrc).some(
+    (entry) => entry !== ".devcontainer",
+  );
+  const copySource = nestedHasFiles
+    ? devContainerSrc
+    : rootHasFiles
+      ? templateSrc
+      : null;
 
   if (fs.existsSync(devContainerDest)) {
     console.log(
       `  ${icon.warning} ${c.yellow}.devcontainer/${c.reset} already exists — skipping creation.`,
     );
-  } else if (hasFiles) {
-    copyDir(devContainerSrc, devContainerDest);
+  } else if (copySource) {
+    copyDir(copySource, devContainerDest);
     const files = fs.readdirSync(devContainerDest);
     console.log(
       `\n  ${icon.success} Created ${c.bold}.devcontainer/${c.reset} with ${files.length} file(s):`,
