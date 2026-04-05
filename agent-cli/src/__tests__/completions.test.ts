@@ -43,10 +43,31 @@ describe("generateCompletions", () => {
     const expectedCommands = [
       "init", "install", "list", "update",
       "add", "remove", "preset", "diff", "create",
+      "prompt", "dev-container",
     ];
     for (const cmd of expectedCommands) {
       assert.ok(result.includes(cmd), `Missing command: ${cmd}`);
     }
+  });
+
+  it("includes dev-container --target values in zsh output", () => {
+    const result = generateCompletions("zsh");
+    assert.ok(result.includes("dev-container"), "Missing dev-container command");
+    assert.ok(result.includes("claude"), "Missing claude target");
+    assert.ok(result.includes("copilot"), "Missing copilot target");
+    assert.ok(result.includes("ai"), "Missing ai target");
+  });
+
+  it("includes dev-container --target values in bash output", () => {
+    const result = generateCompletions("bash");
+    assert.ok(result.includes("dev-container"), "Missing dev-container command");
+    assert.ok(result.match(/compgen -W "claude copilot ai"/), "Missing target completions");
+  });
+
+  it("includes dev-container --target values in fish output", () => {
+    const result = generateCompletions("fish");
+    assert.ok(result.includes("dev-container"), "Missing dev-container command");
+    assert.ok(result.includes("-a 'claude copilot ai'"), "Missing target completions");
   });
 
   it("zsh completion is a valid function definition", () => {

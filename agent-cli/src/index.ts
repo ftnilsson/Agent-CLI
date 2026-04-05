@@ -42,6 +42,8 @@ import {
 const VERSION = "1.1.0";
 const MANIFEST_FILE = ".agent.json";
 const LOCAL_INSTRUCTIONS_FILE = "local-instructions.md";
+const DEV_CONTAINER_TARGETS = ["claude", "copilot", "ai"] as const;
+type DevContainerTarget = (typeof DEV_CONTAINER_TARGETS)[number];
 
 const AGENT_TEMPLATE = `# Project Agent Instructions
 
@@ -169,6 +171,9 @@ switch (command) {
     break;
   case "completions":
     cmdCompletions(args);
+    break;
+  case "dev-container":
+    cmdDevContainer(args);
     break;
   case "--version":
   case "-v":
@@ -1138,6 +1143,104 @@ function generateSkillsIndex(outRoot: string, resolved: ResolvedEntry[]): void {
 }
 
 /**
+ * `agent dev-container` — Scaffold a .devcontainer/ setup in the current directory.
+ *
+ * Usage:
+ *   agent dev-container --target <claude|copilot|ai>
+ */
+function cmdDevContainer(args: string[]): void {
+  const targetIdx = args.indexOf("--target");
+  const target =
+    targetIdx !== -1 && args[targetIdx + 1]
+      ? (args[targetIdx + 1] as DevContainerTarget)
+      : undefined;
+
+  if (!target) {
+    console.error(
+      `  ${icon.error} Missing required option: --target <${DEV_CONTAINER_TARGETS.join("|")}>\n`,
+    );
+    console.log(
+      `  ${icon.info} Usage: ${c.cyan}agent dev-container --target <target>${c.reset}\n`,
+    );
+    console.log(
+      `  Available targets:\n${DEV_CONTAINER_TARGETS.map((t) => `    ${icon.container} ${c.cyan}${t}${c.reset}`).join("\n")}\n`,
+    );
+    process.exit(1);
+  }
+
+  if (!DEV_CONTAINER_TARGETS.includes(target)) {
+    console.error(
+      `  ${icon.error} Unknown target: "${target}". Must be one of: ${DEV_CONTAINER_TARGETS.join(", ")}\n`,
+    );
+    process.exit(1);
+  }
+
+  const DEFAULT_SOURCE = "github:ftnilsson/agent-cli";
+  const source = manifestExists()
+    ? loadManifest().source
+    : DEFAULT_SOURCE;
+
+  const spinner = new Spinner(
+    `${icon.container} Fetching dev-container template for ${c.cyan}${target}${c.reset}`,
+  );
+  spinner.start();
+
+  let repoDir: string;
+  try {
+    repoDir = cloneOrUpdate(source, "HEAD");
+  } catch (err) {
+    spinner.fail(`Failed to fetch source: ${(err as Error).message}`);
+    process.exit(1);
+  }
+
+  const templateSrc = path.join(repoDir, "dev-containers", target);
+  const devContainerDest = path.resolve(".devcontainer");
+
+  if (!fs.existsSync(templateSrc)) {
+    spinner.fail(
+      `Template not found in source repo: dev-containers/${target}`,
+    );
+    process.exit(1);
+  }
+
+  spinner.stop(`Template located ${c.dim}(dev-containers/${target})${c.reset}`);
+
+  // Count files to copy (excluding the .devcontainer wrapper folder itself)
+  const devContainerSrc = path.join(templateSrc, ".devcontainer");
+  const hasFiles =
+    fs.existsSync(devContainerSrc) && fs.readdirSync(devContainerSrc).length > 0;
+
+  if (fs.existsSync(devContainerDest)) {
+    console.log(
+      `  ${icon.warning} ${c.yellow}.devcontainer/${c.reset} already exists — skipping creation.`,
+    );
+  } else if (hasFiles) {
+    copyDir(devContainerSrc, devContainerDest);
+    const files = fs.readdirSync(devContainerDest);
+    console.log(
+      `\n  ${icon.success} Created ${c.bold}.devcontainer/${c.reset} with ${files.length} file(s):`,
+    );
+    for (const f of files) {
+      console.log(`    ${icon.file} ${f}`);
+    }
+  } else {
+    fs.mkdirSync(devContainerDest, { recursive: true });
+    console.log(
+      `\n  ${icon.success} Created ${c.bold}.devcontainer/${c.reset} ${c.dim}(empty — add your Dockerfile and devcontainer.json)${c.reset}`,
+    );
+  }
+
+  console.log(
+    `\n  ${icon.info} Target: ${c.cyan}${target}${c.reset}`,
+  );
+  console.log(
+    `  ${icon.folder} Output: ${c.dim}.devcontainer/${c.reset}\n`,
+  );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
  * Check that generated outputs are listed in .gitignore and warn if not.
  */
 function checkGitignore(outputDir: string): void {
@@ -1233,6 +1336,12 @@ function printHelp(): void {
     ${c.cyan}completions${c.reset} <shell>        Output shell completion script
         e.g. agent completions zsh > ~/.zsh/completions/_agent
 
+    ${icon.container}  ${c.cyan}dev-container${c.reset}              Scaffold a .devcontainer/ setup
+        --target <target>        Dev container target (required):
+                                   claude   ${icon.arrow} Claude Code dev container
+                                   copilot  ${icon.arrow} GitHub Copilot dev container
+                                   ai       ${icon.arrow} Multi-agent dev container (Claude Code + tools)
+
   ${c.bold}OPTIONS${c.reset}
     -v, --version              Show version
     -h, --help                 Show this help
@@ -1270,5 +1379,9 @@ function printHelp(): void {
 
     ${c.dim}# Install shell completions${c.reset}
     ${c.cyan}agent completions zsh > ~/.zsh/completions/_agent${c.reset}
+
+    ${c.dim}# Scaffold a dev container${c.reset}
+    ${c.cyan}agent dev-container --target claude${c.reset}
+    ${c.cyan}agent dev-container --target ai${c.reset}
 `);
 }

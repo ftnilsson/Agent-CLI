@@ -76,6 +76,9 @@ export const icon = {
   star: "⭐",
   clipboard: "📋",
 
+  // Tools
+  container: "🐳",
+
   // UI
   arrow: "→",
   bullet: "•",
