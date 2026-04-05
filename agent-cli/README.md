@@ -78,6 +78,11 @@ agent install
 agent install --format copilot    # → .github/copilot-instructions.md
 agent install --format cursor     # → .cursorrules
 agent install --format claude     # → CLAUDE.md
+
+# 4. Add a dev container for your AI tool
+agent dev-container --target claude    # → .devcontainer/
+agent dev-container --target copilot
+agent dev-container --target ai
 ```
 
 ## Commands
@@ -135,10 +140,6 @@ agent list --remote   # show ALL available entries in the registry
 
 Remote listing marks included entries with `●` and available ones with `○`.
 `agent list --remote` reads the latest registry state (HEAD), not only your pinned manifest ref.
-
-`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
-
-`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
 `--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
@@ -261,6 +262,24 @@ agent completions bash >> ~/.bashrc
 # Fish
 agent completions fish > ~/.config/fish/completions/agent.fish
 ```
+
+### `agent dev-container --target <target>`
+
+Scaffold a `.devcontainer/` setup in the current directory for your preferred AI coding tool.
+
+```bash
+agent dev-container --target claude     # Claude Code dev container
+agent dev-container --target copilot    # GitHub Copilot dev container
+agent dev-container --target ai         # Multi-agent container (Claude Code + tools)
+```
+
+| Target | Description |
+|---|---|
+| `claude` | Dev container configured for Claude Code |
+| `copilot` | Dev container configured for GitHub Copilot |
+| `ai` | Dev container with multiple AI coding tools pre-installed |
+
+The command fetches the template from the source repository (or your configured `.agent.json` source) and copies it into `.devcontainer/` in your project root. You can then customise the generated `devcontainer.json` and `Dockerfile` to suit your project.
 
 ## Local Overrides
 

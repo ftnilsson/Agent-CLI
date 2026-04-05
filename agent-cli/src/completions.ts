@@ -11,6 +11,7 @@ const COMMANDS = [
   "diff",
   "create",
   "prompt",
+  "dev-container",
 ];
 
 /**
@@ -45,6 +46,7 @@ _agent() {
     'diff:Preview what would change'
     'create:Scaffold a new agent.md or skill.md'
     'prompt:Browse and use prompts'
+    'dev-container:Scaffold a .devcontainer/ setup'
   )
 
   local -a global_opts
@@ -97,6 +99,10 @@ _agent() {
           _arguments \\
             '1:subcommand:(list show copy)'
           ;;
+        dev-container)
+          _arguments \\
+            '--target[Dev container target]:target:(claude copilot ai)'
+          ;;
       esac
       ;;
   esac
@@ -117,7 +123,7 @@ _agent_completions() {
   COMPREPLY=()
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
-  commands="init install list update add remove preset diff create prompt"
+  commands="init install list update add remove preset diff create prompt dev-container"
 
   case "\${COMP_WORDS[1]}" in
     install)
@@ -152,6 +158,14 @@ _agent_completions() {
       COMPREPLY=( $(compgen -W "list show copy" -- "$cur") )
       return
       ;;
+    dev-container)
+      if [[ "$prev" == "--target" ]]; then
+        COMPREPLY=( $(compgen -W "claude copilot ai" -- "$cur") )
+        return
+      fi
+      COMPREPLY=( $(compgen -W "--target" -- "$cur") )
+      return
+      ;;
   esac
 
   if [[ \${COMP_CWORD} -eq 1 ]]; then
@@ -183,6 +197,7 @@ complete -c agent -n '__fish_use_subcommand' -a preset -d 'Apply a named preset'
 complete -c agent -n '__fish_use_subcommand' -a diff -d 'Preview what would change'
 complete -c agent -n '__fish_use_subcommand' -a create -d 'Scaffold a new agent.md or skill.md'
 complete -c agent -n '__fish_use_subcommand' -a prompt -d 'Browse and use prompts'
+complete -c agent -n '__fish_use_subcommand' -a dev-container -d 'Scaffold a .devcontainer/ setup'
 
 # Global options
 complete -c agent -n '__fish_use_subcommand' -s h -l help -d 'Show help'
@@ -206,6 +221,9 @@ complete -c agent -n '__fish_seen_subcommand_from create' -a 'agent skill' -d 'T
 
 # prompt options
 complete -c agent -n '__fish_seen_subcommand_from prompt' -a 'list show copy' -d 'Prompt subcommand'
+
+# dev-container options
+complete -c agent -n '__fish_seen_subcommand_from dev-container' -l target -d 'Dev container target' -r -a 'claude copilot ai'
 
 # To install: agent completions fish > ~/.config/fish/completions/agent.fish
 `;
