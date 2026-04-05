@@ -1,5 +1,5 @@
 {
-  "name": "Claude Code Sandbox",
+  "name": "AI Coding Agents Sandbox",
   "build": {
     "dockerfile": "Dockerfile",
     "args": {
