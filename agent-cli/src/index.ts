@@ -14,6 +14,7 @@ import { cmdCreate } from "./commands/create.js";
 import { cmdPrompt } from "./commands/prompt.js";
 import { cmdCompletions } from "./commands/completions.js";
 import { cmdDevContainer } from "./commands/dev-container.js";
+import { cmdSearch } from "./commands/search.js";
 
 // â”€â”€â”€ CLI entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -49,6 +50,9 @@ switch (command) {
     break;
   case "prompt":
     cmdPrompt(args);
+    break;
+  case "search":
+    cmdSearch(args);
     break;
   case "completions":
     cmdCompletions(args);
@@ -137,6 +141,11 @@ function printHelp(): void {
         show <key>               Display a prompt in the terminal
         copy <key>               Copy a prompt to the clipboard
         e.g. agent prompt show development/code-review
+
+    ${icon.search}  ${c.cyan}search${c.reset} <query>            Find skills, agents, and prompts by keyword
+        --json                   Output results as JSON
+        e.g. agent search auth
+        e.g. agent search typescript --json
 
     ${c.cyan}completions${c.reset} <shell>        Output shell completion script
         e.g. agent completions zsh > ~/.zsh/completions/_agent
