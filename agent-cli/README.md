@@ -248,6 +248,22 @@ Keys use `category/prompt` format — e.g. `development/code-review`, `backend/a
 
 During `agent install`, prompts are automatically copied into your output directory under `prompts/<category>/`.
 
+### `agent search <query>`
+
+Find skills, agents, and prompts in the registry by keyword — without browsing everything manually.
+
+```bash
+agent search auth                       # find anything matching "auth"
+agent search typescript                 # find skills, agents, and prompts for TypeScript
+agent search api --json                 # machine-readable JSON output
+```
+
+Matches are case-insensitive and checked against the category key, category name, category description, skill key, and folder name. Each result shows the `category/key` path, its folder, and a one-line description pulled from the skill's `SKILL.md` or `README.md`.
+
+| Option | Description |
+|---|---|
+| `--json` | Output results as a JSON array |
+
 ### `agent completions <shell>`
 
 Output shell completion scripts for tab-completion support.
