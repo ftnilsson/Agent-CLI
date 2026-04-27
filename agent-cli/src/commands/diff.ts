@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { cloneOrUpdate, loadRegistry } from "../git.js";
 import { loadManifest } from "../manifest.js";
 import { LOCAL_INSTRUCTIONS_FILE } from "../constants.js";
+import { loadLock, hashPath } from "../lock.js";
 import {
   parseInstallTarget,
   resolveAgentOutputPaths,
@@ -40,6 +41,7 @@ export function cmdDiff(args: string[]): void {
   const repoDir = cloneOrUpdate(manifest.source, manifest.ref);
   const registry = loadRegistry(repoDir);
   const { skills, agents } = resolveIncludes(manifest.include, registry);
+  const lock = loadLock();
   spinner.stop("Comparison ready");
 
   let changes = 0;
@@ -56,9 +58,16 @@ export function cmdDiff(args: string[]): void {
       changes++;
     } else {
       const src = path.join(repoDir, srcPath);
-      if (fs.existsSync(src) && hasDifferences(src, dest)) {
-        console.log(`  ${c.yellow}~${c.reset}  ${key}  ${c.dim}(modified)${c.reset}`);
-        changes++;
+      if (fs.existsSync(src)) {
+        const srcHash = hashPath(src);
+        const lockEntry = lock?.files[key];
+        if (lockEntry ? srcHash !== lockEntry.hash : hasDifferences(src, dest)) {
+          const note = lockEntry ? "upstream changed" : "modified";
+          console.log(`  ${c.yellow}~${c.reset}  ${key}  ${c.dim}(${note})${c.reset}`);
+          changes++;
+        } else {
+          console.log(`  ${c.dim}=${c.reset}  ${key}  ${c.dim}(unchanged)${c.reset}`);
+        }
       } else {
         console.log(`  ${c.dim}=${c.reset}  ${key}  ${c.dim}(unchanged)${c.reset}`);
       }
