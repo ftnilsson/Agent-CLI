@@ -1,8 +1,9 @@
 import * as path from "node:path";
+import * as fs from "node:fs";
 import type { AgentManifest } from "../types.js";
 import { cloneOrUpdate, loadRegistry, getLatestRef } from "../git.js";
 import { saveManifest, manifestExists } from "../manifest.js";
-import { MANIFEST_FILE } from "../constants.js";
+import { MANIFEST_FILE, SCHEMA_URL } from "../constants.js";
 import { icon, color as c, Spinner } from "../ui.js";
 
 /**
@@ -38,6 +39,7 @@ export async function cmdInit(args: string[]): Promise<void> {
   spinner.stop(`Source resolved ${c.dim}(${ref})${c.reset}`);
 
   const manifest: AgentManifest = {
+    $schema: SCHEMA_URL,
     source,
     ref,
     outputDir,
@@ -53,6 +55,7 @@ export async function cmdInit(args: string[]): Promise<void> {
   }
 
   saveManifest(manifest);
+  writeVscodeSchemaAssociation();
   console.log(`\n  ${icon.success} Created ${c.bold}${MANIFEST_FILE}${c.reset} ${c.dim}(ref: ${ref})${c.reset}`);
 
   if (manifest.include.length > 0) {
@@ -65,4 +68,37 @@ export async function cmdInit(args: string[]): Promise<void> {
     console.log(`  ${c.dim}3.${c.reset} Install everything:       ${c.cyan}agent install${c.reset}`);
     console.log(`  ${c.dim}4.${c.reset} Browse what's available:  ${c.cyan}agent list --remote${c.reset}`);
   }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Creates or updates `.vscode/settings.json` to associate the agent-cli JSON
+ * Schema with `.agent.json`, enabling autocomplete and inline validation in
+ * VS Code without requiring a manual `$schema` lookup.
+ */
+function writeVscodeSchemaAssociation(cwd: string = process.cwd()): void {
+  const vscodeDir = path.join(cwd, ".vscode");
+  const settingsPath = path.join(vscodeDir, "settings.json");
+
+  const schemaEntry = { fileMatch: [".agent.json"], url: SCHEMA_URL };
+
+  let settings: Record<string, unknown> = {};
+  if (fs.existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
+    } catch {
+      // Malformed settings.json — leave it alone
+      return;
+    }
+  }
+
+  const existing = (settings["json.schemas"] as typeof schemaEntry[] | undefined) ?? [];
+  const alreadyPresent = existing.some((e) => e.fileMatch?.includes(".agent.json"));
+  if (alreadyPresent) return;
+
+  settings["json.schemas"] = [...existing, schemaEntry];
+
+  fs.mkdirSync(vscodeDir, { recursive: true });
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
 }

@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ftnilsson/agent-cli/main/schema/agent-manifest.schema.json",
+  "title": "AgentManifest",
+  "description": "Configuration manifest for agent-cli (.agent.json)",
+  "type": "object",
+  "required": ["source", "ref", "outputDir", "include"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference URL"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source repository, e.g. \"github:user/repo\"",
+      "examples": ["github:ftnilsson/agent-cli"]
+    },
+    "ref": {
+      "type": "string",
+      "description": "Git ref pinned during last install: tag, branch, or full SHA",
+      "examples": ["main", "v1.0.0", "a1b2c3d4e5f6"]
+    },
+    "outputDir": {
+      "type": "string",
+      "description": "Directory where downloaded skills are placed, relative to the project root",
+      "default": ".agent",
+      "examples": [".agent", ".copilot/skills"]
+    },
+    "include": {
+      "type": "array",
+      "description": "List of \"category/skill-key\" entries to install",
+      "items": {
+        "type": "string",
+        "description": "A skill reference in \"category/key\" format",
+        "examples": ["development/architecture", "backend/auth", "agents/nextjs"]
+      },
+      "uniqueItems": true
+    },
+    "agentOutput": {
+      "type": "string",
+      "description": "Output path for the composed agent instruction file",
+      "default": "agent.md",
+      "examples": ["agent.md", ".github/copilot-instructions.md"]
+    },
+    "defaultTarget": {
+      "type": "string",
+      "description": "Default install target used when --target is not supplied",
+      "enum": ["copilot", "claude", "cursor"]
+    }
+  }
+}
