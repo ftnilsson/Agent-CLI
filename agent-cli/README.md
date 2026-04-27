@@ -113,21 +113,24 @@ Read `.agent.json` and install everything:
 - **Skills** → copied into the output directory
 - **Agent instructions** → composed into a single file
 - **Local overrides** → automatically appended from `local-instructions.md`
+- **Lockfile** → `.agent.lock` is written after a successful install
 
 ```bash
 agent install
-agent install --format copilot     # output to .github/copilot-instructions.md
-agent install --format cursor      # output to .cursorrules
-agent install --format claude      # output to CLAUDE.md
-agent install --no-gitignore       # skip adding generated files to .gitignore
+agent install --target copilot     # output to .github/copilot-instructions.md
+agent install --target cursor      # output to .cursorrules
+agent install --target claude      # output to CLAUDE.md
+agent install --skip-gitignore     # skip adding generated files to .gitignore
 ```
 
 | Option | Description |
 |---|---|
-| `--format <target>` | Agent output format — `copilot`, `cursor`, `claude` (default: `agent.md`) |
-| `--no-gitignore` | Skip auto-adding generated files to `.gitignore` |
+| `--target <target>` | Install target — `copilot`, `cursor`, `claude` |
+| `--skip-gitignore` | Skip auto-adding generated files to `.gitignore` |
 
-By default, the CLI checks that generated files are listed in `.gitignore` and adds them automatically. Use `--no-gitignore` to opt out.
+By default, the CLI checks that generated files are listed in `.gitignore` and adds them automatically. Use `--skip-gitignore` to opt out.
+
+On re-install, skills and agents whose source content hash matches `.agent.lock` are skipped automatically, making repeated installs fast.
 
 ### `agent list`
 
@@ -140,8 +143,6 @@ agent list --remote   # show ALL available entries in the registry
 
 Remote listing marks included entries with `●` and available ones with `○`.
 `agent list --remote` reads the latest registry state (HEAD), not only your pinned manifest ref.
-
-`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
 `--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
@@ -206,8 +207,10 @@ Preview what would change on the next `agent install` — like `terraform plan` 
 
 ```bash
 agent diff
-agent diff --format copilot
+agent diff --target copilot
 ```
+
+When `.agent.lock` is present, diff uses content hashes for precise change detection and reports `(upstream changed)` when the source has changed since the last install. Without a lockfile it falls back to a byte-for-byte directory comparison.
 
 Output markers:
 - `+` — new (will be added)
@@ -629,9 +632,11 @@ You are an expert Next.js developer building full-stack applications.
 
 1. **`init`** clones the source repo, resolves the latest ref, and writes `.agent.json`
 2. **`add`/`remove`** validate against `registry.json` and update the manifest
-3. **`install`** checks out the pinned ref, resolves each key to a folder path, copies skills, composes agent instructions, appends local overrides, and guards `.gitignore`
+3. **`install`** checks out the pinned ref, resolves each key to a folder path, copies skills (skipping unchanged ones via `.agent.lock`), composes agent instructions, appends local overrides, guards `.gitignore`, and writes `.agent.lock`
 4. **`update`** fetches the latest tag (or commit SHA) and updates the manifest ref
-5. **`diff`** compares what would be installed versus what's currently on disk
+5. **`diff`** compares what would be installed versus what's currently on disk — uses `.agent.lock` hashes when available for precision
+
+`.agent.lock` should be committed alongside `.agent.json` (like `package-lock.json`) so installs are deterministic across machines.
 
 The source repo is cached at `~/.cache/agent-cli/` so subsequent operations are fast and work offline after the initial clone.
 
