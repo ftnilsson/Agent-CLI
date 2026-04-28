@@ -43,11 +43,31 @@ describe("generateCompletions", () => {
     const expectedCommands = [
       "init", "install", "list", "update",
       "add", "remove", "preset", "diff", "create",
-      "prompt", "dev-container",
+      "prompt", "search", "completions", "dev-container",
     ];
     for (const cmd of expectedCommands) {
       assert.ok(result.includes(cmd), `Missing command: ${cmd}`);
     }
+  });
+
+  it("includes search and completions support across shells", () => {
+    const zsh = generateCompletions("zsh");
+    const bash = generateCompletions("bash");
+    const fish = generateCompletions("fish");
+
+    assert.ok(zsh.includes("'search:Find skills, agents, and prompts by keyword'"));
+    assert.ok(zsh.includes("'completions:Output shell completion script'"));
+    assert.ok(zsh.includes("--json[Output results as JSON]"));
+    assert.ok(zsh.includes("'1:shell:(zsh bash fish)'"));
+
+    assert.ok(bash.includes('commands="init install list update add remove preset diff create prompt search completions dev-container"'));
+    assert.ok(bash.includes('compgen -W "--json"'));
+    assert.ok(bash.includes('compgen -W "zsh bash fish"'));
+
+    assert.ok(fish.includes("-a search -d 'Find skills, agents, and prompts by keyword'"));
+    assert.ok(fish.includes("-a completions -d 'Output shell completion script'"));
+    assert.ok(fish.includes("__fish_seen_subcommand_from search' -l json"));
+    assert.ok(fish.includes("__fish_seen_subcommand_from completions' -a 'zsh bash fish'"));
   });
 
   it("includes dev-container --target values in zsh output", () => {

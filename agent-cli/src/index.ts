@@ -117,7 +117,7 @@ function printHelp(): void {
         e.g. agent add development/git agents/nextjs
         e.g. agent add game-dev/*          ${c.dim}(add entire category)${c.reset}
         e.g. agent add agents/*            ${c.dim}(add all agent instructions)${c.reset}
-        ${c.dim}Category aliases: awsâ†’aws-cloud, azureâ†’azure-cloud, gamedevâ†’game-dev${c.reset}
+        ${c.dim}Category aliases: aws->aws-cloud, azure->azure-cloud${c.reset}
 
     ${icon.remove}  ${c.cyan}remove${c.reset} <category/key>      Remove entries from the manifest
         e.g. agent remove development/git
@@ -162,7 +162,7 @@ function printHelp(): void {
 
   ${c.bold}LOCAL OVERRIDES${c.reset}
     Create a ${c.cyan}${LOCAL_INSTRUCTIONS_FILE}${c.reset} file in your project root.
-    Its contents are automatically appended to the composed agent.md
+    Its contents are automatically appended to the composed instruction file
     during ${c.cyan}agent install${c.reset}.
 
   ${c.bold}EXAMPLES${c.reset}
