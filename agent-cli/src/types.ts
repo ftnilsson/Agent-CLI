@@ -1,6 +1,8 @@
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface AgentManifest {
+  /** JSON Schema reference — written by `agent init`, enables IDE autocomplete */
+  $schema?: string;
   /** Source repository, e.g. "github:user/repo" */
   source: string;
   /** Git ref: tag, branch, or SHA */

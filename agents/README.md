@@ -35,21 +35,21 @@ agent add agents/nextjs development/* frontend/*
 # Or use a preset that includes both
 agent preset nextjs
 
-# Install — agent instructions compose to agent.md, skills go to .agent/
+# Install — agent instructions compose to a target-specific index file, skills go to target-specific folders
 agent install
 
 # Target a specific tool
-agent install --format copilot    # → .github/copilot-instructions.md
-agent install --format cursor     # → .cursorrules
-agent install --format claude     # → CLAUDE.md
+agent install --target copilot    # → .github/copilot-instructions.md + .github/agents/
+agent install --target cursor     # → .cursorrules + .cursor/agents/
+agent install --target claude     # → CLAUDE.md + .claude/agents/
 ```
 
 ## Composability
 
-Multiple agent instruction files can be combined. For example, adding both `agents/typescript` (general TypeScript rules) and `agents/nextjs` (Next.js-specific rules) produces a single composed `agent.md` with both sets of instructions.
+Multiple agent instruction files can be combined. For example, adding both `agents/typescript` (general TypeScript rules) and `agents/nextjs` (Next.js-specific rules) produces a single composed instruction index with both sets of instructions.
 
 ```bash
 agent add agents/typescript agents/nextjs
 agent install
-# → produces a single agent.md with both instruction sets
+# → produces a single composed instruction index with both instruction sets
 ```

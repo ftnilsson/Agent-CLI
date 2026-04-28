@@ -11,6 +11,8 @@ const COMMANDS = [
   "diff",
   "create",
   "prompt",
+  "search",
+  "completions",
   "dev-container",
 ];
 
@@ -46,6 +48,8 @@ _agent() {
     'diff:Preview what would change'
     'create:Scaffold a new agent.md or skill.md'
     'prompt:Browse and use prompts'
+    'search:Find skills, agents, and prompts by keyword'
+    'completions:Output shell completion script'
     'dev-container:Scaffold a .devcontainer/ setup'
   )
 
@@ -99,6 +103,15 @@ _agent() {
           _arguments \\
             '1:subcommand:(list show copy)'
           ;;
+        search)
+          _arguments \\
+            '--json[Output results as JSON]' \\
+            '*:query:'
+          ;;
+        completions)
+          _arguments \\
+            '1:shell:(zsh bash fish)'
+          ;;
         dev-container)
           _arguments \\
             '--target[Dev container target]:target:(claude copilot ai)'
@@ -123,7 +136,7 @@ _agent_completions() {
   COMPREPLY=()
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
-  commands="init install list update add remove preset diff create prompt dev-container"
+  commands="init install list update add remove preset diff create prompt search completions dev-container"
 
   case "\${COMP_WORDS[1]}" in
     install)
@@ -156,6 +169,14 @@ _agent_completions() {
       ;;
     prompt)
       COMPREPLY=( $(compgen -W "list show copy" -- "$cur") )
+      return
+      ;;
+    search)
+      COMPREPLY=( $(compgen -W "--json" -- "$cur") )
+      return
+      ;;
+    completions)
+      COMPREPLY=( $(compgen -W "zsh bash fish" -- "$cur") )
       return
       ;;
     dev-container)
@@ -197,6 +218,8 @@ complete -c agent -n '__fish_use_subcommand' -a preset -d 'Apply a named preset'
 complete -c agent -n '__fish_use_subcommand' -a diff -d 'Preview what would change'
 complete -c agent -n '__fish_use_subcommand' -a create -d 'Scaffold a new agent.md or skill.md'
 complete -c agent -n '__fish_use_subcommand' -a prompt -d 'Browse and use prompts'
+complete -c agent -n '__fish_use_subcommand' -a search -d 'Find skills, agents, and prompts by keyword'
+complete -c agent -n '__fish_use_subcommand' -a completions -d 'Output shell completion script'
 complete -c agent -n '__fish_use_subcommand' -a dev-container -d 'Scaffold a .devcontainer/ setup'
 
 # Global options
@@ -221,6 +244,12 @@ complete -c agent -n '__fish_seen_subcommand_from create' -a 'agent skill' -d 'T
 
 # prompt options
 complete -c agent -n '__fish_seen_subcommand_from prompt' -a 'list show copy' -d 'Prompt subcommand'
+
+# search options
+complete -c agent -n '__fish_seen_subcommand_from search' -l json -d 'Output results as JSON'
+
+# completions options
+complete -c agent -n '__fish_seen_subcommand_from completions' -a 'zsh bash fish' -d 'Shell'
 
 # dev-container options
 complete -c agent -n '__fish_seen_subcommand_from dev-container' -l target -d 'Dev container target' -r -a 'claude copilot ai'

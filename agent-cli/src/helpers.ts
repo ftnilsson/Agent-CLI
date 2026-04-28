@@ -22,7 +22,7 @@ export type InstallTarget = "copilot" | "claude" | "cursor";
 // ─── Functions ───────────────────────────────────────────────────────────────
 
 /**
- * Resolve the output path for agent instructions based on --format flag.
+ * Resolve the output path for agent instructions for legacy callers.
  * @deprecated Use resolveAgentOutputPaths instead
  */
 export function resolveAgentOutputPath(
@@ -98,7 +98,7 @@ export function resolveContentOutputDirs(target: InstallTarget): ContentOutputDi
 /**
  * Validate and normalize install target from CLI args.
  * Always returns a valid target (defaults to "copilot" or provided default).
- * Supports both --target (preferred) and --format (deprecated) for backward compatibility.
+ * Rejects removed legacy flags like --format and --all with helpful guidance.
  */
 export function parseInstallTarget(
   args: string[],

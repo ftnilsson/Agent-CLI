@@ -16,7 +16,7 @@
    ╚═══════════════════════════════════════════════════╝
 ```
 
-A CLI tool for pulling agent skills and AI coding instructions from a central repository into any project. Pick only the skills and agent instructions you need — compose them into a single agent.md (or tool-specific format) with one command.
+A CLI tool for pulling agent skills and AI coding instructions from a central repository into any project. Pick only the skills and agent instructions you need — compose them into a slim tool-specific instruction index with one command.
 
 ## Prerequisites
 
@@ -74,10 +74,10 @@ agent init github:your-org/agents
 agent preset nextjs
 agent install
 
-# 3. Output for your preferred AI tool
-agent install --format copilot    # → .github/copilot-instructions.md
-agent install --format cursor     # → .cursorrules
-agent install --format claude     # → CLAUDE.md
+# 3. Install to your preferred AI tool
+agent install --target copilot    # → .github/copilot-instructions.md + .github/skills/
+agent install --target claude     # → CLAUDE.md + .claude/skills/
+agent install --target cursor     # → .cursorrules + .cursor/skills/
 
 # 4. Add a dev container for your AI tool
 agent dev-container --target claude    # → .devcontainer/
@@ -110,24 +110,53 @@ agent init github:your-org/agents -i                        # shorthand
 ### `agent install`
 
 Read `.agent.json` and install everything:
-- **Skills** → copied into the output directory
-- **Agent instructions** → composed into a single file
-- **Local overrides** → automatically appended from `local-instructions.md`
+- **Skills** → copied into a target-specific directory on disk
+- **Agent instructions** → copied into a target-specific directory on disk
+- **Index file** → a slim reference file (≤200 lines) linking to the installed files
+- **Local overrides** → content from `local-instructions.md` is embedded inline in the index file
+- **Prompts** → copied into a target-specific prompts directory
+
+#### Basic Usage
 
 ```bash
-agent install
-agent install --format copilot     # output to .github/copilot-instructions.md
-agent install --format cursor      # output to .cursorrules
-agent install --format claude      # output to CLAUDE.md
-agent install --no-gitignore       # skip adding generated files to .gitignore
+agent install                       # default: copilot target
+agent install --target copilot      # .github/copilot-instructions.md + .github/skills/ + .github/agents/
+agent install --target claude       # CLAUDE.md + .claude/skills/ + .claude/agents/
+agent install --target cursor       # .cursorrules + .cursor/skills/ + .cursor/agents/
+agent install --skip-gitignore      # skip adding generated files to .gitignore
 ```
+
+#### Understanding Install Targets
+
+Each target installs a slim index file and places all skills/agents on disk in a target-specific directory:
+
+| Target | Index file | Skills & agents | Prompts |
+|---|---|---|---|
+| `copilot` (default) | `.github/copilot-instructions.md` | `.github/skills/`, `.github/agents/` | `.github/prompts/` |
+| `claude` | `CLAUDE.md` | `.claude/skills/`, `.claude/agents/` | `.claude/prompts/` |
+| `cursor` | `.cursorrules` | `.cursor/skills/`, `.cursor/agents/` | `.cursor/prompts/` |
+
+The index file is intentionally small — it contains your local overrides inline and a list of links pointing to the installed skill and agent files on disk. The AI tool reads those linked files directly.
+
+If your `.agent.json` has a `defaultTarget` field, that will be used when no `--target` is specified:
+
+```json
+{
+  "source": "github:ftnilsson/agent-cli",
+  "ref": "main",
+  "include": ["development/architecture"],
+  "defaultTarget": "claude"
+}
+```
+
+#### Installation Options
 
 | Option | Description |
 |---|---|
-| `--format <target>` | Agent output format — `copilot`, `cursor`, `claude` (default: `agent.md`) |
-| `--no-gitignore` | Skip auto-adding generated files to `.gitignore` |
+| `--target <target>` | Install target — `copilot`, `claude`, or `cursor` (default: `copilot`) |
+| `--skip-gitignore` | Skip auto-adding generated files to `.gitignore` |
 
-By default, the CLI checks that generated files are listed in `.gitignore` and adds them automatically. Use `--no-gitignore` to opt out.
+By default, the CLI checks that generated files are listed in `.gitignore` and adds them automatically. Use `--skip-gitignore` to opt out.
 
 ### `agent list`
 
@@ -140,8 +169,6 @@ agent list --remote   # show ALL available entries in the registry
 
 Remote listing marks included entries with `●` and available ones with `○`.
 `agent list --remote` reads the latest registry state (HEAD), not only your pinned manifest ref.
-
-`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
 `--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
@@ -165,7 +192,6 @@ agent add serverless aws-cloud                      # bare category names (= cat
 agent add aws azure                                 # aliases for aws-cloud / azure-cloud
 agent add game-dev/*                                # entire category with wildcard
 agent add agents/*                                  # all agent instructions
-agent add cloud-aws cloud-azure                     # aliases for aws-cloud / azure-cloud
 
 # install multiple full categories
 agent add development/* aws-cloud/* serverless/*
@@ -190,12 +216,19 @@ Apply a named preset — a curated set of skills and agent instructions for a sp
 
 ```bash
 agent preset --list            # show available presets
-agent preset nextjs            # apply the Next.js preset
-agent preset nestjs            # apply the NestJS preset
-agent preset react             # apply the React SPA preset
-agent preset unity-full        # apply the Unity game dev preset
-agent preset aws-cloud         # apply the AWS cloud preset
-agent preset serverless-aws    # apply the serverless + AWS preset
+agent preset web               # full-stack web (development + frontend + backend)
+agent preset frontend          # frontend only
+agent preset backend           # backend only
+agent preset typescript        # TypeScript/Node.js
+agent preset nextjs            # Next.js full-stack
+agent preset nestjs            # NestJS API
+agent preset react             # React SPA
+agent preset unity             # Unity 6 game dev (includes agent instructions)
+agent preset godot             # Godot 4 game dev (includes agent instructions)
+agent preset aws               # AWS cloud
+agent preset azure             # Azure cloud
+agent preset serverless-aws    # Serverless on AWS
+agent preset serverless-azure  # Serverless on Azure
 ```
 
 Presets are resolved against the latest remote registry. If your manifest ref is behind, it is updated automatically.
@@ -206,8 +239,12 @@ Preview what would change on the next `agent install` — like `terraform plan` 
 
 ```bash
 agent diff
-agent diff --format copilot
+agent diff --target copilot
+agent diff --target claude
+agent diff --target cursor
 ```
+
+When `.agent.lock` is present, diff uses content hashes for precise change detection and reports `(upstream changed)` when the source has changed since the last install. Without a lockfile it falls back to a byte-for-byte directory comparison.
 
 Output markers:
 - `+` — new (will be added)
@@ -248,6 +285,22 @@ Keys use `category/prompt` format — e.g. `development/code-review`, `backend/a
 
 During `agent install`, prompts are automatically copied into your output directory under `prompts/<category>/`.
 
+### `agent search <query>`
+
+Find skills, agents, and prompts in the registry by keyword — without browsing everything manually.
+
+```bash
+agent search auth                       # find anything matching "auth"
+agent search typescript                 # find skills, agents, and prompts for TypeScript
+agent search api --json                 # machine-readable JSON output
+```
+
+Matches are case-insensitive and checked against the category key, category name, category description, skill key, and folder name. Each result shows the `category/key` path, its folder, and a one-line description pulled from the skill's `SKILL.md` or `README.md`.
+
+| Option | Description |
+|---|---|
+| `--json` | Output results as a JSON array |
+
 ### `agent completions <shell>`
 
 Output shell completion scripts for tab-completion support.
@@ -281,9 +334,27 @@ agent dev-container --target ai         # Multi-agent container (Claude Code + t
 
 The command fetches the template from the source repository (or your configured `.agent.json` source) and copies it into `.devcontainer/` in your project root. You can then customise the generated `devcontainer.json` and `Dockerfile` to suit your project.
 
+### `agent dev-container --target <target>`
+
+Scaffold a `.devcontainer/` setup in the current directory for your preferred AI coding tool.
+
+```bash
+agent dev-container --target claude     # Claude Code dev container
+agent dev-container --target copilot    # GitHub Copilot dev container
+agent dev-container --target ai         # Multi-agent container (Claude Code + tools)
+```
+
+| Target | Description |
+|---|---|
+| `claude` | Dev container configured for Claude Code |
+| `copilot` | Dev container configured for GitHub Copilot |
+| `ai` | Dev container with multiple AI coding tools pre-installed |
+
+The command fetches the template from the source repository (or your configured `.agent.json` source) and copies it into `.devcontainer/` in your project root. You can then customise the generated `devcontainer.json` and `Dockerfile` to suit your project.
+
 ## Local Overrides
 
-Create a `local-instructions.md` file in your project root to add project-specific rules that are automatically appended to the composed agent.md during `agent install`.
+Create a `local-instructions.md` file in your project root to add project-specific rules that are automatically appended to the composed instruction file during `agent install`.
 
 This lets you layer project-specific instructions on top of curated base instructions — without forking the source repository.
 
@@ -613,9 +684,11 @@ You are an expert Next.js developer building full-stack applications.
 
 1. **`init`** clones the source repo, resolves the latest ref, and writes `.agent.json`
 2. **`add`/`remove`** validate against `registry.json` and update the manifest
-3. **`install`** checks out the pinned ref, resolves each key to a folder path, copies skills, composes agent instructions, appends local overrides, and guards `.gitignore`
+3. **`install`** checks out the pinned ref, resolves each key to a folder path, copies skills (skipping unchanged ones via `.agent.lock`), composes agent instructions, appends local overrides, guards `.gitignore`, and writes `.agent.lock`
 4. **`update`** fetches the latest tag (or commit SHA) and updates the manifest ref
-5. **`diff`** compares what would be installed versus what's currently on disk
+5. **`diff`** compares what would be installed versus what's currently on disk — uses `.agent.lock` hashes when available for precision
+
+`.agent.lock` should be committed alongside `.agent.json` (like `package-lock.json`) so installs are deterministic across machines.
 
 The source repo is cached at `~/.cache/agent-cli/` so subsequent operations are fast and work offline after the initial clone.
 

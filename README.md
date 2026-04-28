@@ -20,7 +20,7 @@
 [![Tests](https://github.com/ftnilsson/Agent-CLI/actions/workflows/test.yml/badge.svg)](https://github.com/ftnilsson/Agent-CLI/actions/workflows/test.yml)
 [![CodeQL](https://github.com/ftnilsson/Agent-CLI/actions/workflows/codeql.yml/badge.svg)](https://github.com/ftnilsson/Agent-CLI/actions/workflows/codeql.yml)
 
-A CLI tool for pulling agent skills and AI coding instructions from a central repository into any project. Pick only the skills and agent instructions you need — compose them into a single agent.md (or tool-specific format) with one command.
+A CLI tool for pulling agent skills and AI coding instructions from a central repository into any project. Pick only the skills and agent instructions you need — compose them into a slim tool-specific instruction index with one command.
 
 ## Prerequisites
 
@@ -188,7 +188,6 @@ agent add serverless aws-cloud                      # bare category names (= cat
 agent add aws azure                                 # aliases for aws-cloud / azure-cloud
 agent add game-dev/*                                # entire category with wildcard
 agent add agents/*                                  # all agent instructions
-agent add cloud-aws cloud-azure                     # aliases for aws-cloud / azure-cloud
 
 # install multiple full categories
 agent add development/* aws-cloud/* serverless/*
@@ -297,7 +296,7 @@ agent completions fish > ~/.config/fish/completions/agent.fish
 
 ## Local Overrides
 
-Create a `local-instructions.md` file in your project root to add project-specific rules that are automatically appended to the composed agent.md during `agent install`.
+Create a `local-instructions.md` file in your project root to add project-specific rules that are automatically appended to the composed instruction file during `agent install`.
 
 This lets you layer project-specific instructions on top of curated base instructions — without forking the source repository.
 
