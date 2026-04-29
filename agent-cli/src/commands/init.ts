@@ -10,10 +10,10 @@ import { icon, color as c, Spinner } from "../ui.js";
  * `agent init` — Create a .agent.json manifest in the current directory.
  *
  * Usage:
- *   agent init [source] [--output <dir>]
- *   agent init [source] --interactive     ← browse & pick interactively
+ *   agent init <source> [--output <dir>]
+ *   agent init <source> --interactive     ← browse & pick interactively
  *
- * If no source is provided, defaults to github:ftnilsson/agent-cli
+ * A source is required — e.g. github:ftnilsson/agent-registry
  */
 export async function cmdInit(args: string[]): Promise<void> {
   if (manifestExists()) {
@@ -23,8 +23,14 @@ export async function cmdInit(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const DEFAULT_SOURCE = "github:ftnilsson/agent-cli";
-  const source = args.find((a) => !a.startsWith("--")) || DEFAULT_SOURCE;
+  const source = args.find((a) => !a.startsWith("--"));
+  if (!source) {
+    console.error(`  ${icon.error} A registry source is required.\n`);
+    console.error(`  Usage: ${c.cyan}agent init <source>${c.reset}`);
+    console.error(`  e.g.   ${c.cyan}agent init github:ftnilsson/agent-registry${c.reset}`);
+    console.error(`  e.g.   ${c.cyan}agent init github:your-org/your-registry${c.reset}`);
+    process.exit(1);
+  }
 
   const outputIdx = args.indexOf("--output");
   const outputDir =

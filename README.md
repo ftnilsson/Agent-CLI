@@ -70,11 +70,12 @@ pnpm unlink -g agent-cli
 ## Quick Start
 
 ```bash
-# 1. Quick start with default repository (interactive mode)
-agent init --interactive
+# 1. Browse and select interactively
+agent init github:ftnilsson/agent-registry --interactive
+agent install
 
-# 2. Or specify your own repository
-agent init github:your-org/agents
+# 2. Or apply a preset for your stack
+agent init github:ftnilsson/agent-registry
 agent preset nextjs
 agent install
 
@@ -86,19 +87,16 @@ agent install --target cursor     # → .cursorrules + .cursor/skills/
 
 ## Commands
 
-### `agent init [source]`
+### `agent init <source>`
 
-Create a `.agent.json` manifest in the current directory.
-
-If no source is provided, defaults to `github:ftnilsson/agent-cli` (this repository).
+Create a `.agent.json` manifest in the current directory. A registry source is required.
 
 ```bash
-agent init                                      # uses default repository
-agent init --interactive                        # browse default repository interactively
-agent init github:your-org/agents               # use custom repository  
-agent init github:your-org/agents --output .agent-skills   # custom output dir
-agent init github:your-org/agents --interactive             # browse & select
-agent init github:your-org/agents -i                        # shorthand
+agent init github:ftnilsson/agent-registry                            # use the official registry
+agent init github:ftnilsson/agent-registry --interactive              # browse & select
+agent init github:ftnilsson/agent-registry -i                         # shorthand
+agent init github:ftnilsson/agent-registry --output .agent-skills     # custom output dir
+agent init github:your-org/your-registry                              # use your own registry
 ```
 
 | Option | Default | Description |
@@ -141,7 +139,7 @@ If your `.agent.json` has a `defaultTarget` field, that will be used when no `--
 
 ```json
 {
-  "source": "github:ftnilsson/agent-cli",
+  "source": "github:ftnilsson/agent-registry",
   "ref": "main",
   "include": ["development/architecture"],
   "defaultTarget": "claude"
@@ -543,17 +541,13 @@ agent prompt copy backend/api-review
 
 ### 5. Using Your Repository
 
-Once your repository is set up, users can pull from it:
+Once your repository is set up, point the CLI at it:
 
 ```bash
-# By default, agent-cli uses github:ftnilsson/agent-cli
-agent init                              # uses the default repository
-agent init --interactive                # browse default repository
-
-# Point to your custom repository
+# Point to your registry
 agent init github:your-org/your-skills-repo
 
-# Or use a different Git source
+# Or use a full Git URL
 agent init https://github.com/your-org/your-skills-repo.git
 
 # Browse and select interactively
@@ -562,6 +556,8 @@ agent init github:your-org/your-skills-repo --interactive
 # Install the selected skills
 agent install
 ```
+
+You can also fork [ftnilsson/agent-registry](https://github.com/ftnilsson/agent-registry) as a ready-made starting point and customise it for your team.
 
 ### Example Skill File
 

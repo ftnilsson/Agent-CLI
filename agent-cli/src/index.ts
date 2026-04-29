@@ -96,10 +96,10 @@ function printHelp(): void {
     ${c.cyan}agent${c.reset} <command> [options]
 
   ${c.bold}COMMANDS${c.reset}
-    ${icon.init}  ${c.cyan}init${c.reset} [source]              Create a ${MANIFEST_FILE} manifest
+    ${icon.init}  ${c.cyan}init${c.reset} <source>             Create a ${MANIFEST_FILE} manifest
         --output <dir>           Output directory for skills ${c.dim}(default: .agent)${c.reset}
         -i, --interactive        Browse and select entries interactively
-        ${c.dim}(defaults to github:ftnilsson/agent-cli)${c.reset}
+        ${c.dim}(source required — e.g. github:ftnilsson/agent-registry)${c.reset}
 
     ${icon.install}  ${c.cyan}install${c.reset}                    Pull skills + compose agent instructions
         --target <target>        Install target (default: copilot):
