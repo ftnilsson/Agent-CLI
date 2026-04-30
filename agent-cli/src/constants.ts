@@ -1,4 +1,7 @@
-export const VERSION = "1.1.0";
+import { createRequire } from "module";
+const _require = createRequire(import.meta.url);
+const { version } = _require("../package.json") as { version: string };
+export const VERSION = version;
 export const MANIFEST_FILE = ".agent.json";
 export const LOCK_FILE = ".agent.lock";
 export const LOCAL_INSTRUCTIONS_FILE = "local-instructions.md";
