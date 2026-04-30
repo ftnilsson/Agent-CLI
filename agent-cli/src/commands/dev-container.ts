@@ -40,8 +40,13 @@ export function cmdDevContainer(args: string[]): void {
     process.exit(1);
   }
 
-  const DEFAULT_SOURCE = "github:ftnilsson/agent-cli";
-  const source = manifestExists() ? loadManifest().source : DEFAULT_SOURCE;
+  if (!manifestExists()) {
+    console.error(`  ${icon.error} No ${c.bold}.agent.json${c.reset} manifest found.\n`);
+    console.error(`  Run ${c.cyan}agent init <source>${c.reset} first to set up a registry source.`);
+    console.error(`  e.g. ${c.cyan}agent init github:ftnilsson/agent-registry${c.reset}`);
+    process.exit(1);
+  }
+  const source = loadManifest().source;
 
   const spinner = new Spinner(
     `${icon.container} Fetching dev-container template for ${c.cyan}${target}${c.reset}`,
