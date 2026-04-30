@@ -1,6 +1,6 @@
 {
   "name": "agent-cli",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "description": "CLI tool for pulling agent skills and instructions from a central repository into any project.",
   "type": "module",
   "main": "dist/index.js",
