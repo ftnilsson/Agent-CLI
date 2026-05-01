@@ -23,18 +23,15 @@ jobs:
         with:
           node-version: "20.x"
           cache: "npm"
-          cache-dependency-path: agent-cli/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: ./agent-cli
         run: npm ci || npm install
 
       - name: Install semantic-release plugins
-        working-directory: ./agent-cli
         run: npm install --no-save semantic-release @semantic-release/changelog @semantic-release/git
 
       - name: Release
-        working-directory: ./agent-cli
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
