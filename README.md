@@ -16,10 +16,6 @@
    ╚═══════════════════════════════════════════════════╝
 ```
 
-[![Build](https://github.com/ftnilsson/Agent-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/ftnilsson/Agent-CLI/actions/workflows/ci.yml)
-[![Tests](https://github.com/ftnilsson/Agent-CLI/actions/workflows/test.yml/badge.svg)](https://github.com/ftnilsson/Agent-CLI/actions/workflows/test.yml)
-[![CodeQL](https://github.com/ftnilsson/Agent-CLI/actions/workflows/codeql.yml/badge.svg)](https://github.com/ftnilsson/Agent-CLI/actions/workflows/codeql.yml)
-
 A CLI tool for pulling agent skills and AI coding instructions from a central repository into any project. Pick only the skills and agent instructions you need — compose them into a slim tool-specific instruction index with one command.
 
 ## Prerequisites
@@ -70,12 +66,11 @@ pnpm unlink -g agent-cli
 ## Quick Start
 
 ```bash
-# 1. Browse and select interactively
-agent init github:ftnilsson/agent-registry --interactive
-agent install
+# 1. Quick start with default repository (interactive mode)
+agent init --interactive
 
-# 2. Or apply a preset for your stack
-agent init github:ftnilsson/agent-registry
+# 2. Or specify your own repository
+agent init github:your-org/agents
 agent preset nextjs
 agent install
 
@@ -83,20 +78,28 @@ agent install
 agent install --target copilot    # → .github/copilot-instructions.md + .github/skills/
 agent install --target claude     # → CLAUDE.md + .claude/skills/
 agent install --target cursor     # → .cursorrules + .cursor/skills/
+
+# 4. Add a dev container for your AI tool
+agent dev-container --target claude    # → .devcontainer/
+agent dev-container --target copilot
+agent dev-container --target ai
 ```
 
 ## Commands
 
-### `agent init <source>`
+### `agent init [source]`
 
-Create a `.agent.json` manifest in the current directory. A registry source is required.
+Create a `.agent.json` manifest in the current directory.
+
+If no source is provided, defaults to `github:ftnilsson/agent-cli` (this repository).
 
 ```bash
-agent init github:ftnilsson/agent-registry                            # use the official registry
-agent init github:ftnilsson/agent-registry --interactive              # browse & select
-agent init github:ftnilsson/agent-registry -i                         # shorthand
-agent init github:ftnilsson/agent-registry --output .agent-skills     # custom output dir
-agent init github:your-org/your-registry                              # use your own registry
+agent init                                      # uses default repository
+agent init --interactive                        # browse default repository interactively
+agent init github:your-org/agents               # use custom repository  
+agent init github:your-org/agents --output .agent-skills   # custom output dir
+agent init github:your-org/agents --interactive             # browse & select
+agent init github:your-org/agents -i                        # shorthand
 ```
 
 | Option | Default | Description |
@@ -139,7 +142,7 @@ If your `.agent.json` has a `defaultTarget` field, that will be used when no `--
 
 ```json
 {
-  "source": "github:ftnilsson/agent-registry",
+  "source": "github:ftnilsson/agent-cli",
   "ref": "main",
   "include": ["development/architecture"],
   "defaultTarget": "claude"
@@ -165,7 +168,9 @@ agent list --remote   # show ALL available entries in the registry
 ```
 
 Remote listing marks included entries with `●` and available ones with `○`.
-`agent list --remote` reads the latest registry state (HEAD), not only your pinned manifest ref. If your manifest ref is behind, you will see a note suggesting `agent update`.
+`agent list --remote` reads the latest registry state (HEAD), not only your pinned manifest ref.
+
+`--remote` always reads the latest registry from HEAD. If your manifest ref is behind, you will see a note suggesting `agent update`.
 
 ### `agent update`
 
@@ -175,6 +180,7 @@ Fetch the latest ref (tag or commit) from the source repo and update `.agent.jso
 agent update           # updates the ref
 agent install          # then re-install to apply
 ```
+
 ### `agent add <category[/key]>`
 
 Add one or more skills or agent instructions to your manifest. Accepts `category/key`, `category/*`, or just a bare category name (treated as `category/*`).
@@ -238,6 +244,8 @@ agent diff --target claude
 agent diff --target cursor
 ```
 
+When `.agent.lock` is present, diff uses content hashes for precise change detection and reports `(upstream changed)` when the source has changed since the last install. Without a lockfile it falls back to a byte-for-byte directory comparison.
+
 Output markers:
 - `+` — new (will be added)
 - `~` — modified (will be updated)
@@ -277,6 +285,22 @@ Keys use `category/prompt` format — e.g. `development/code-review`, `backend/a
 
 During `agent install`, prompts are automatically copied into your output directory under `prompts/<category>/`.
 
+### `agent search <query>`
+
+Find skills, agents, and prompts in the registry by keyword — without browsing everything manually.
+
+```bash
+agent search auth                       # find anything matching "auth"
+agent search typescript                 # find skills, agents, and prompts for TypeScript
+agent search api --json                 # machine-readable JSON output
+```
+
+Matches are case-insensitive and checked against the category key, category name, category description, skill key, and folder name. Each result shows the `category/key` path, its folder, and a one-line description pulled from the skill's `SKILL.md` or `README.md`.
+
+| Option | Description |
+|---|---|
+| `--json` | Output results as a JSON array |
+
 ### `agent completions <shell>`
 
 Output shell completion scripts for tab-completion support.
@@ -291,6 +315,42 @@ agent completions bash >> ~/.bashrc
 # Fish
 agent completions fish > ~/.config/fish/completions/agent.fish
 ```
+
+### `agent dev-container --target <target>`
+
+Scaffold a `.devcontainer/` setup in the current directory for your preferred AI coding tool.
+
+```bash
+agent dev-container --target claude     # Claude Code dev container
+agent dev-container --target copilot    # GitHub Copilot dev container
+agent dev-container --target ai         # Multi-agent container (Claude Code + tools)
+```
+
+| Target | Description |
+|---|---|
+| `claude` | Dev container configured for Claude Code |
+| `copilot` | Dev container configured for GitHub Copilot |
+| `ai` | Dev container with multiple AI coding tools pre-installed |
+
+The command fetches the template from the source repository (or your configured `.agent.json` source) and copies it into `.devcontainer/` in your project root. You can then customise the generated `devcontainer.json` and `Dockerfile` to suit your project.
+
+### `agent dev-container --target <target>`
+
+Scaffold a `.devcontainer/` setup in the current directory for your preferred AI coding tool.
+
+```bash
+agent dev-container --target claude     # Claude Code dev container
+agent dev-container --target copilot    # GitHub Copilot dev container
+agent dev-container --target ai         # Multi-agent container (Claude Code + tools)
+```
+
+| Target | Description |
+|---|---|
+| `claude` | Dev container configured for Claude Code |
+| `copilot` | Dev container configured for GitHub Copilot |
+| `ai` | Dev container with multiple AI coding tools pre-installed |
+
+The command fetches the template from the source repository (or your configured `.agent.json` source) and copies it into `.devcontainer/` in your project root. You can then customise the generated `devcontainer.json` and `Dockerfile` to suit your project.
 
 ## Local Overrides
 
@@ -541,13 +601,17 @@ agent prompt copy backend/api-review
 
 ### 5. Using Your Repository
 
-Once your repository is set up, point the CLI at it:
+Once your repository is set up, users can pull from it:
 
 ```bash
-# Point to your registry
+# By default, agent-cli uses github:ftnilsson/agent-cli
+agent init                              # uses the default repository
+agent init --interactive                # browse default repository
+
+# Point to your custom repository
 agent init github:your-org/your-skills-repo
 
-# Or use a full Git URL
+# Or use a different Git source
 agent init https://github.com/your-org/your-skills-repo.git
 
 # Browse and select interactively
@@ -556,8 +620,6 @@ agent init github:your-org/your-skills-repo --interactive
 # Install the selected skills
 agent install
 ```
-
-You can also fork [ftnilsson/agent-registry](https://github.com/ftnilsson/agent-registry) as a ready-made starting point and customise it for your team.
 
 ### Example Skill File
 
@@ -621,10 +683,12 @@ You are an expert Next.js developer building full-stack applications.
 ## How It Works
 
 1. **`init`** clones the source repo, resolves the latest ref, and writes `.agent.json`
-2. **`add`/`remove`** validate against the latest `registry.json` (HEAD) and update the manifest (including auto-refreshing the ref)
-3. **`install`** checks out the pinned ref, resolves each key to a folder path, copies skills, composes agent instructions, appends local overrides, and guards `.gitignore`
+2. **`add`/`remove`** validate against `registry.json` and update the manifest
+3. **`install`** checks out the pinned ref, resolves each key to a folder path, copies skills (skipping unchanged ones via `.agent.lock`), composes agent instructions, appends local overrides, guards `.gitignore`, and writes `.agent.lock`
 4. **`update`** fetches the latest tag (or commit SHA) and updates the manifest ref
-5. **`diff`** compares what would be installed versus what's currently on disk
+5. **`diff`** compares what would be installed versus what's currently on disk — uses `.agent.lock` hashes when available for precision
+
+`.agent.lock` should be committed alongside `.agent.json` (like `package-lock.json`) so installs are deterministic across machines.
 
 The source repo is cached at `~/.cache/agent-cli/` so subsequent operations are fast and work offline after the initial clone.
 
