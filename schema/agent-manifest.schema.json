@@ -14,7 +14,7 @@
     "source": {
       "type": "string",
       "description": "Source repository, e.g. \"github:user/repo\"",
-      "examples": ["github:ftnilsson/agent-cli"]
+      "examples": ["github:ftnilsson/agent-registry"]
     },
     "ref": {
       "type": "string",
