@@ -66,10 +66,10 @@ pnpm unlink -g agent-cli
 ## Quick Start
 
 ```bash
-# 1. Quick start with default repository (interactive mode)
-agent init --interactive
+# 1. Initialise with your registry (a source is required)
+agent init github:your-org/your-registry --interactive   # browse & select interactively
 
-# 2. Or specify your own repository
+# 2. Or add skills directly and install
 agent init github:your-org/agents
 agent preset nextjs
 agent install
@@ -91,12 +91,10 @@ agent dev-container --target ai
 
 Create a `.agent.json` manifest in the current directory.
 
-If no source is provided, defaults to `github:ftnilsson/agent-cli` (this repository).
+A registry source is required.
 
 ```bash
-agent init                                      # uses default repository
-agent init --interactive                        # browse default repository interactively
-agent init github:your-org/agents               # use custom repository  
+agent init github:your-org/agents               # initialise with a registry
 agent init github:your-org/agents --output .agent-skills   # custom output dir
 agent init github:your-org/agents --interactive             # browse & select
 agent init github:your-org/agents -i                        # shorthand
@@ -142,7 +140,7 @@ If your `.agent.json` has a `defaultTarget` field, that will be used when no `--
 
 ```json
 {
-  "source": "github:ftnilsson/agent-cli",
+  "source": "github:your-org/your-registry",
   "ref": "main",
   "include": ["development/architecture"],
   "defaultTarget": "claude"
@@ -604,14 +602,10 @@ agent prompt copy backend/api-review
 Once your repository is set up, users can pull from it:
 
 ```bash
-# By default, agent-cli uses github:ftnilsson/agent-cli
-agent init                              # uses the default repository
-agent init --interactive                # browse default repository
-
-# Point to your custom repository
+# A registry source is required
 agent init github:your-org/your-skills-repo
 
-# Or use a different Git source
+# Or use a full Git URL
 agent init https://github.com/your-org/your-skills-repo.git
 
 # Browse and select interactively
@@ -679,6 +673,25 @@ You are an expert Next.js developer building full-stack applications.
 - **Number your skills**: Use prefixes (01-, 02-) to control ordering
 - **Document everything**: Add README files to explain each category
 - **Version your registry**: Update the version field when making breaking changes
+
+### Example Registry
+
+[**ftnilsson/agent-registry**](https://github.com/ftnilsson/agent-registry) is a public reference implementation that shows how to structure a registry for use with agent-cli. It includes:
+
+- A complete `registry.json` with multiple categories, presets, and prompts
+- Skill categories for development, frontend, backend, serverless, cloud, and game dev
+- Agent instruction sets for Next.js, NestJS, React, Unity, Godot, and more
+- Prompt files for common AI tasks in each category
+
+You can use it directly or clone it as a starting point for your own registry:
+
+```bash
+# Try the example registry
+agent init github:ftnilsson/agent-registry --interactive
+
+# Clone it as a starting point
+git clone https://github.com/ftnilsson/agent-registry my-registry
+```
 
 ## How It Works
 

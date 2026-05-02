@@ -54,32 +54,3 @@ export async function interactiveSelect(registry: Registry): Promise<string[]> {
 
   return selected;
 }
-
-/**
- * Ask a simple yes/no question. Returns true for yes.
- */
-export async function confirm(question: string, defaultYes = false): Promise<boolean> {
-  const rl = readline.createInterface({ input: stdin, output: stdout });
-  try {
-    const hint = defaultYes ? `${c.dim}[Y/n]${c.reset}` : `${c.dim}[y/N]${c.reset}`;
-    const answer = await rl.question(`  ${icon.question} ${question} ${hint} `);
-    const trimmed = answer.trim().toLowerCase();
-    if (trimmed === "") return defaultYes;
-    return trimmed === "y" || trimmed === "yes";
-  } finally {
-    rl.close();
-  }
-}
-
-/**
- * Ask for a free-text value with a default.
- */
-export async function promptValue(question: string, defaultValue: string): Promise<string> {
-  const rl = readline.createInterface({ input: stdin, output: stdout });
-  try {
-    const answer = await rl.question(`  ${icon.question} ${question} ${c.dim}(${defaultValue})${c.reset} `);
-    return answer.trim() || defaultValue;
-  } finally {
-    rl.close();
-  }
-}

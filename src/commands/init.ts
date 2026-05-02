@@ -13,7 +13,7 @@ import { icon, color as c, Spinner } from "../ui.js";
  *   agent init <source> [--output <dir>]
  *   agent init <source> --interactive     ← browse & pick interactively
  *
- * A source is required — e.g. github:ftnilsson/agent-registry
+ * A source is required — e.g. github:your-org/your-registry
  */
 export async function cmdInit(args: string[]): Promise<void> {
   if (manifestExists()) {

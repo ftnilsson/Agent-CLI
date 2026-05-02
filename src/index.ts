@@ -166,10 +166,10 @@ function printHelp(): void {
     during ${c.cyan}agent install${c.reset}.
 
   ${c.bold}EXAMPLES${c.reset}
-    ${c.dim}# Quick start with default repository${c.reset}
-    ${c.cyan}agent init --interactive${c.reset}
+    ${c.dim}# Initialise with your registry${c.reset}
+    ${c.cyan}agent init github:your-org/agents --interactive${c.reset}
 
-    ${c.dim}# Or use a custom repository${c.reset}
+    ${c.dim}# Or add skills directly and install${c.reset}
     ${c.cyan}agent init github:your-org/agents${c.reset}
     ${c.cyan}agent preset nextjs${c.reset}
     ${c.cyan}agent install${c.reset}
