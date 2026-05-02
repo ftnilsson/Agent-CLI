@@ -1,6 +1,6 @@
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
-const { version } = _require("./package.json") as { version: string };
+const { version } = _require("../package.json") as { version: string };
 export const VERSION = version;
 export const MANIFEST_FILE = ".agent.json";
 export const LOCK_FILE = ".agent.lock";
