@@ -71,7 +71,8 @@ agent init github:your-org/your-registry --interactive   # browse & select inter
 
 # 2. Or add skills directly and install
 agent init github:your-org/agents
-agent preset nextjs
+agent preset --list              # see what presets your registry defines
+agent preset <name>              # apply one
 agent install
 
 # 3. Install to your preferred AI tool
@@ -210,26 +211,16 @@ agent remove agents/*         # remove all agent instructions
 
 ### `agent preset <name>`
 
-Apply a named preset — a curated set of skills and agent instructions for a specific stack.
+Apply a named preset — a curated set of skills and agent instructions defined in your registry.
+
+Presets are defined in your registry's `registry.json` and vary by registry. Use `--list` to discover what's available in yours:
 
 ```bash
-agent preset --list            # show available presets
-agent preset web               # full-stack web (development + frontend + backend)
-agent preset frontend          # frontend only
-agent preset backend           # backend only
-agent preset typescript        # TypeScript/Node.js
-agent preset nextjs            # Next.js full-stack
-agent preset nestjs            # NestJS API
-agent preset react             # React SPA
-agent preset unity             # Unity 6 game dev (includes agent instructions)
-agent preset godot             # Godot 4 game dev (includes agent instructions)
-agent preset aws               # AWS cloud
-agent preset azure             # Azure cloud
-agent preset serverless-aws    # Serverless on AWS
-agent preset serverless-azure  # Serverless on Azure
+agent preset --list            # show all presets defined in your registry
+agent preset <name>            # apply a preset by name
 ```
 
-Presets are resolved against the latest remote registry. If your manifest ref is behind, it is updated automatically.
+Presets are resolved against the latest state of your registry. If your manifest ref is behind, it is updated automatically.
 
 ### `agent diff`
 
