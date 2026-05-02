@@ -1,5 +1,7 @@
 # agent-cli
 
+![CI](https://github.com/ftnilsson/agent-cli/actions/workflows/ci.yml/badge.svg) ![Tests](https://github.com/ftnilsson/agent-cli/actions/workflows/test.yml/badge.svg)
+
 ```
    ╔═══════════════════════════════════════════════════╗
    ║                                                   ║
